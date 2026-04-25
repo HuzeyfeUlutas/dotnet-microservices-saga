@@ -123,6 +123,47 @@ Order placement must follow this flow:
 
 ---
 
+
+## New Service Scaffolding
+
+When generating a new service, do not use the current Catalog implementation as the source of truth.
+
+Catalog may change over time and may contain real business code.
+
+Use the fixed initial service template located at:
+
+`docs/templates/service-skeleton.md`
+
+Follow that template exactly for services such as Inventory, Payment, Shipment, Basket, etc.
+
+Do not create extra folders, entities, repositories, DbContexts, migrations, handlers, controllers, endpoints, or business logic unless explicitly requested.
+
+Domain and Application must remain empty for initial scaffolding.
+
+---
+
+## Agent Skills
+
+For detailed, task-specific instructions, use repository skills under:
+
+`.agents/skills`
+
+When asked to create `BaseEntity`, `AuditableEntity`, or Domain/Common base classes for a service, use:
+
+`.agents/skills/dotnet-domain-common/SKILL.md`
+
+If `docs/templates/domain-common.md` exists, treat it as the source of truth for generated code.
+
+---
+
+## Application Layer Scaffolding
+
+When asked to scaffold or implement an Application layer for a service, use:
+
+`docs/templates/application-skeleton.md`
+
+---
+
 ## Clean Architecture Layering
 
 - Each service must be separated into the following layers according to Clean Architecture principles:
@@ -134,6 +175,35 @@ Order placement must follow this flow:
 - Dependencies between layers should only be top-down.
 - Each service should have its own independent Clean Architecture structure.
 - Here, Clean Architecture dependency rules must be preserved; it is important in which layer a NuGet package is installed.
+
+---
+
+## Application Layer Standards
+
+- Use CQRS in the Application layer.
+- Use MediatR request and handler patterns for Application use cases.
+- Use FluentValidation for command and query validation.
+- Prefer feature-based organization in the Application project.
+- Keep validators, requests, handlers, and feature-specific response models close to the feature they belong to.
+- Do not place EF Core implementation details or infrastructure logic in the Application layer.
+
+---
+
+## Package Standards
+
+- For this repository, prefer `MediatR` version `12.5.0` unless the user explicitly asks to change it.
+- Do not upgrade MediatR major or minor versions without explicit approval.
+- Re-check package licensing and NuGet vulnerability status before changing the pinned MediatR version.
+- Use stable, pinned package versions for FluentValidation and related Application-layer dependencies.
+
+---
+
+## Exception Handling
+
+- Define domain rule violations in the Domain layer with a dedicated `DomainException`.
+- Define Application-layer exceptions such as not found, conflict, and forbidden cases in the Application layer.
+- Use a global exception handler in the API layer.
+- Return standardized `ProblemDetails` responses and include a `traceId`.
 
 ---
 
