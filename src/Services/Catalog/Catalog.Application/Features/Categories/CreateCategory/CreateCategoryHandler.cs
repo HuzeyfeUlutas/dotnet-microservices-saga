@@ -1,12 +1,17 @@
+using Catalog.Application.Abstractions.Observability;
 using Catalog.Application.Abstractions.Persistence;
 using Catalog.Application.Common.Exceptions;
 using Catalog.Domain.Entities;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Catalog.Application.Features.Categories.CreateCategory;
 
-public class CreateCategoryHandler(ICatalogDbContext context) : IRequestHandler<CreateCategoryCommand, Guid>
+public class CreateCategoryHandler(
+    ICatalogDbContext context,
+    ICatalogMetrics metrics,
+    ILogger<CreateCategoryHandler> logger) : IRequestHandler<CreateCategoryCommand, Guid>
 {
     public async Task<Guid> Handle(CreateCategoryCommand request, CancellationToken cancellationToken)
     {
@@ -23,6 +28,12 @@ public class CreateCategoryHandler(ICatalogDbContext context) : IRequestHandler<
 
         context.Categories.Add(category);
         await context.SaveChangesAsync(cancellationToken);
+
+        metrics.RecordCategoryCreated();
+        logger.LogInformation(
+            "Category created for {CategoryId} with ParentCategoryId {ParentCategoryId}",
+            category.Id,
+            category.ParentCategoryId);
 
         return category.Id;
     }

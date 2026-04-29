@@ -143,6 +143,8 @@ Example:
 </ItemGroup>
 ```
 
+If the user later asks for messaging, this project is the default place to configure `MassTransit`, broker connectivity, consumers, and Application-to-bus adapters.
+
 ### `{ServiceName}.Persistence`
 
 References:
@@ -158,6 +160,8 @@ Example:
     <ProjectReference Include="..\Inventory.Application\Inventory.Application.csproj" />
 </ItemGroup>
 ```
+
+If the user later asks for outbox support, keep the outbox tables and `DbContext` configuration in this project.
 
 ## Initial API Files
 

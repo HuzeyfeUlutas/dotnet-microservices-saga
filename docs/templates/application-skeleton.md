@@ -46,9 +46,12 @@ Create the following structure:
 src/Services/{ServiceName}/{ServiceName}.Application
 ├── DependencyInjection.cs
 ├── Abstractions
+│   ├── Messaging
 │   ├── Persistence
 │   │   └── I{ServiceName}DbContext.cs
 │   └── Services
+├── Contracts
+│   └── IntegrationEvents
 ├── Features
 │   ├── Products
 │   │   ├── CreateProduct
@@ -88,6 +91,26 @@ Expose:
 - `SaveChangesAsync`
 
 Do not add repository interfaces by default.
+
+### `Abstractions/Messaging`
+
+Place Application-facing publishing abstractions here when a use case needs to emit integration events.
+
+Rules:
+
+- Keep the abstraction transport-agnostic.
+- Do not reference `MassTransit` directly from the Application layer.
+- Do not inject broker-specific configuration into handlers.
+
+### `Contracts/IntegrationEvents`
+
+Place transport-agnostic integration event contracts here when a dedicated shared contracts package does not yet exist.
+
+Rules:
+
+- contracts should describe cross-service facts, not internal persistence concerns
+- do not reference `MassTransit` types in these contracts
+- keep them stable and versioned carefully once other services start consuming them
 
 ### `Common`
 
@@ -129,6 +152,7 @@ For each use case:
 - Do not put controller, endpoint, DbContext implementation, migration, or infrastructure code in the Application layer.
 - Do not introduce generic service layers that duplicate MediatR handlers.
 - Use the service's `I{ServiceName}DbContext` abstraction instead of referencing the concrete DbContext type.
+- When integration events are needed, publish them through an Application abstraction and let Infrastructure map that abstraction to `MassTransit`.
 - Use feature-based naming consistently inside the service.
 - Do not add AutoMapper by default; use explicit projection unless the user explicitly asks for a mapper library.
 - Use Application exceptions for expected use-case failures and leave HTTP mapping to the API layer.

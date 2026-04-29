@@ -1,12 +1,21 @@
+using Catalog.Application.Abstractions.Messaging;
+using Catalog.Application.Abstractions.Observability;
 using Catalog.Application.Abstractions.Persistence;
 using Catalog.Application.Common.Exceptions;
+using Catalog.Application.Contracts.IntegrationEvents.Products;
 using Catalog.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Catalog.Application.Features.Products.UpdateProduct;
 
-public class UpdateProductHandler(ICatalogDbContext context) : IRequestHandler<UpdateProductCommand>
+public class UpdateProductHandler(
+    ICatalogDbContext context,
+    IIntegrationEventPublisher eventPublisher,
+    ICatalogMetrics metrics,
+    ILogger<UpdateProductHandler> logger)
+    : IRequestHandler<UpdateProductCommand>
 {
     public async Task Handle(UpdateProductCommand request, CancellationToken cancellationToken)
     {
@@ -28,6 +37,9 @@ public class UpdateProductHandler(ICatalogDbContext context) : IRequestHandler<U
             throw new NotFoundException($"Category '{request.CategoryId}' was not found.");
         }
 
+        var currentPrice = product.Price;
+        var currentStatus = product.Status;
+
         product.UpdateDetails(request.Name, request.Description);
         product.ChangePrice(request.Price);
         product.ChangeBrand(request.BrandId);
@@ -48,6 +60,49 @@ public class UpdateProductHandler(ICatalogDbContext context) : IRequestHandler<U
                 break;
         }
 
+        if (currentPrice != product.Price)
+        {
+            await eventPublisher.PublishAsync(
+                new ProductPriceUpdatedIntegrationEvent(
+                    Guid.NewGuid(),
+                    DateTime.UtcNow,
+                    product.Id,
+                    currentPrice,
+                    product.Price),
+                cancellationToken);
+        }
+
+        var becameUnavailable = currentStatus != ProductStatus.Inactive && product.Status == ProductStatus.Inactive;
+
+        if (becameUnavailable)
+        {
+            await eventPublisher.PublishAsync(
+                new ProductUnavailableIntegrationEvent(
+                    Guid.NewGuid(),
+                    DateTime.UtcNow,
+                    product.Id,
+                    "Deactivated"),
+                cancellationToken);
+        }
+
         await context.SaveChangesAsync(cancellationToken);
+
+        if (currentPrice != product.Price)
+        {
+            metrics.RecordProductPriceUpdated();
+            logger.LogInformation(
+                "Product price updated for {ProductId} from {PreviousPrice} to {CurrentPrice}",
+                product.Id,
+                currentPrice,
+                product.Price);
+        }
+
+        if (becameUnavailable)
+        {
+            metrics.RecordProductUnavailable("Deactivated");
+            logger.LogInformation(
+                "Product deactivated for {ProductId}",
+                product.Id);
+        }
     }
 }

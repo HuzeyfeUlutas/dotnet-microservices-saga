@@ -1,3 +1,4 @@
+using Catalog.API.Observability;
 using Catalog.Application.Common.Exceptions;
 using Catalog.Domain.Exceptions;
 using FluentValidation;
@@ -6,14 +7,20 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Catalog.API.ExceptionHandlers;
 
-public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IExceptionHandler
+public class GlobalExceptionHandler(
+    ILogger<GlobalExceptionHandler> logger) : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext,
         Exception exception,
         CancellationToken cancellationToken)
     {
-        logger.LogError(exception, "Unhandled exception occurred while processing request.");
+        var correlationId = httpContext.Items[CorrelationConstants.ItemKey] as string;
+
+        logger.LogError(
+            exception,
+            "Unhandled exception occurred while processing request. CorrelationId: {CorrelationId}",
+            correlationId);
 
         var (statusCode, title, detail, extensions) = MapException(httpContext, exception);
 
@@ -31,6 +38,7 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
         }
 
         problemDetails.Extensions["traceId"] = httpContext.TraceIdentifier;
+        problemDetails.Extensions["correlationId"] = correlationId;
 
         httpContext.Response.StatusCode = statusCode;
         await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);

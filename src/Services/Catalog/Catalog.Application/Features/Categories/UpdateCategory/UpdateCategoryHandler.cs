@@ -1,11 +1,16 @@
+using Catalog.Application.Abstractions.Observability;
 using Catalog.Application.Abstractions.Persistence;
 using Catalog.Application.Common.Exceptions;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Catalog.Application.Features.Categories.UpdateCategory;
 
-public class UpdateCategoryHandler(ICatalogDbContext context) : IRequestHandler<UpdateCategoryCommand>
+public class UpdateCategoryHandler(
+    ICatalogDbContext context,
+    ICatalogMetrics metrics,
+    ILogger<UpdateCategoryHandler> logger) : IRequestHandler<UpdateCategoryCommand>
 {
     public async Task Handle(UpdateCategoryCommand request, CancellationToken cancellationToken)
     {
@@ -37,5 +42,12 @@ public class UpdateCategoryHandler(ICatalogDbContext context) : IRequestHandler<
         }
 
         await context.SaveChangesAsync(cancellationToken);
+
+        metrics.RecordCategoryUpdated();
+        logger.LogInformation(
+            "Category updated for {CategoryId} with ParentCategoryId {ParentCategoryId} and IsActive {IsActive}",
+            category.Id,
+            category.ParentCategoryId,
+            request.IsActive);
     }
 }

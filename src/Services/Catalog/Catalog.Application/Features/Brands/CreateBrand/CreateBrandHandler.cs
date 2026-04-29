@@ -1,10 +1,15 @@
+using Catalog.Application.Abstractions.Observability;
 using Catalog.Application.Abstractions.Persistence;
 using Catalog.Domain.Entities;
 using MediatR;
+using Microsoft.Extensions.Logging;
 
 namespace Catalog.Application.Features.Brands.CreateBrand;
 
-public class CreateBrandHandler(ICatalogDbContext context) : IRequestHandler<CreateBrandCommand, Guid>
+public class CreateBrandHandler(
+    ICatalogDbContext context,
+    ICatalogMetrics metrics,
+    ILogger<CreateBrandHandler> logger) : IRequestHandler<CreateBrandCommand, Guid>
 {
     public async Task<Guid> Handle(CreateBrandCommand request, CancellationToken cancellationToken)
     {
@@ -12,6 +17,11 @@ public class CreateBrandHandler(ICatalogDbContext context) : IRequestHandler<Cre
 
         context.Brands.Add(brand);
         await context.SaveChangesAsync(cancellationToken);
+
+        metrics.RecordBrandCreated();
+        logger.LogInformation(
+            "Brand created for {BrandId}",
+            brand.Id);
 
         return brand.Id;
     }

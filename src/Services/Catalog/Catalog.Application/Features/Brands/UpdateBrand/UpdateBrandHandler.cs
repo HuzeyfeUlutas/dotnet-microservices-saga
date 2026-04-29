@@ -1,11 +1,16 @@
+using Catalog.Application.Abstractions.Observability;
 using Catalog.Application.Abstractions.Persistence;
 using Catalog.Application.Common.Exceptions;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Catalog.Application.Features.Brands.UpdateBrand;
 
-public class UpdateBrandHandler(ICatalogDbContext context) : IRequestHandler<UpdateBrandCommand>
+public class UpdateBrandHandler(
+    ICatalogDbContext context,
+    ICatalogMetrics metrics,
+    ILogger<UpdateBrandHandler> logger) : IRequestHandler<UpdateBrandCommand>
 {
     public async Task Handle(UpdateBrandCommand request, CancellationToken cancellationToken)
     {
@@ -27,5 +32,11 @@ public class UpdateBrandHandler(ICatalogDbContext context) : IRequestHandler<Upd
         }
 
         await context.SaveChangesAsync(cancellationToken);
+
+        metrics.RecordBrandUpdated();
+        logger.LogInformation(
+            "Brand updated for {BrandId} with IsActive {IsActive}",
+            brand.Id,
+            request.IsActive);
     }
 }

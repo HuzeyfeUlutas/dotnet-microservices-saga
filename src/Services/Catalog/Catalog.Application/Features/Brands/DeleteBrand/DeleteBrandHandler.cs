@@ -1,11 +1,16 @@
+using Catalog.Application.Abstractions.Observability;
 using Catalog.Application.Abstractions.Persistence;
 using Catalog.Application.Common.Exceptions;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Catalog.Application.Features.Brands.DeleteBrand;
 
-public class DeleteBrandHandler(ICatalogDbContext context) : IRequestHandler<DeleteBrandCommand>
+public class DeleteBrandHandler(
+    ICatalogDbContext context,
+    ICatalogMetrics metrics,
+    ILogger<DeleteBrandHandler> logger) : IRequestHandler<DeleteBrandCommand>
 {
     public async Task Handle(DeleteBrandCommand request, CancellationToken cancellationToken)
     {
@@ -17,5 +22,10 @@ public class DeleteBrandHandler(ICatalogDbContext context) : IRequestHandler<Del
 
         brand.MarkAsDeleted();
         await context.SaveChangesAsync(cancellationToken);
+
+        metrics.RecordBrandDeleted();
+        logger.LogInformation(
+            "Brand marked as deleted for {BrandId}",
+            brand.Id);
     }
 }
