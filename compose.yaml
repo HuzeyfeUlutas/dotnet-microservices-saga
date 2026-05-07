@@ -188,10 +188,17 @@ services:
         condition: service_healthy
       otel-collector:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__InventoryDatabase: Host=inventory-db;Port=5432;Database=inventorydb;Username=postgres;Password=postgres
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__VirtualHost: /
+      RabbitMq__Username: guest
+      RabbitMq__Password: guest
       ElasticSearch__Uri: http://elasticsearch:9200
       OpenTelemetry__OtlpEndpoint: http://otel-collector:4317
     ports:
