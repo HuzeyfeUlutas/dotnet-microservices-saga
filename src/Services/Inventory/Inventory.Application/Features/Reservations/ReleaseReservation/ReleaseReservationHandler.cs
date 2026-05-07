@@ -1,11 +1,12 @@
 using Inventory.Application.Abstractions.Persistence;
+using Inventory.Application.Abstractions.Observability;
 using Inventory.Application.Common.Exceptions;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace Inventory.Application.Features.Reservations.ReleaseReservation;
 
-public class ReleaseReservationHandler(IInventoryDbContext context)
+public class ReleaseReservationHandler(IInventoryDbContext context, IInventoryMetrics metrics)
     : IRequestHandler<ReleaseReservationCommand>
 {
     public async Task Handle(ReleaseReservationCommand request, CancellationToken cancellationToken)
@@ -21,6 +22,7 @@ public class ReleaseReservationHandler(IInventoryDbContext context)
 
         item.ReleaseReservation(request.OrderId, DateTime.UtcNow);
         await SaveChangesAsync(cancellationToken);
+        metrics.RecordReservationReleased();
     }
 
     private async Task SaveChangesAsync(CancellationToken cancellationToken)

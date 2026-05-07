@@ -1,11 +1,12 @@
 using Inventory.Application.Abstractions.Persistence;
+using Inventory.Application.Abstractions.Observability;
 using Inventory.Application.Common.Exceptions;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace Inventory.Application.Features.Reservations.CommitReservation;
 
-public class CommitReservationHandler(IInventoryDbContext context)
+public class CommitReservationHandler(IInventoryDbContext context, IInventoryMetrics metrics)
     : IRequestHandler<CommitReservationCommand>
 {
     public async Task Handle(CommitReservationCommand request, CancellationToken cancellationToken)
@@ -21,6 +22,7 @@ public class CommitReservationHandler(IInventoryDbContext context)
 
         item.CommitReservation(request.OrderId, DateTime.UtcNow);
         await SaveChangesAsync(cancellationToken);
+        metrics.RecordReservationCommitted();
     }
 
     private async Task SaveChangesAsync(CancellationToken cancellationToken)

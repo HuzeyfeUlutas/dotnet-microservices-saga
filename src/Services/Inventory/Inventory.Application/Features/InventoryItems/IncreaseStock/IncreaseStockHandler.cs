@@ -1,11 +1,12 @@
 using Inventory.Application.Abstractions.Persistence;
+using Inventory.Application.Abstractions.Observability;
 using Inventory.Application.Common.Exceptions;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace Inventory.Application.Features.InventoryItems.IncreaseStock;
 
-public class IncreaseStockHandler(IInventoryDbContext context)
+public class IncreaseStockHandler(IInventoryDbContext context, IInventoryMetrics metrics)
     : IRequestHandler<IncreaseStockCommand>
 {
     public async Task Handle(IncreaseStockCommand request, CancellationToken cancellationToken)
@@ -20,6 +21,7 @@ public class IncreaseStockHandler(IInventoryDbContext context)
 
         item.IncreaseStock(request.Quantity, request.Reason, request.ReferenceId);
         await SaveChangesAsync(cancellationToken);
+        metrics.RecordStockIncreased();
     }
 
     private async Task SaveChangesAsync(CancellationToken cancellationToken)

@@ -1,4 +1,5 @@
 using Inventory.Application.Abstractions.Persistence;
+using Inventory.Application.Abstractions.Observability;
 using Inventory.Application.Common.Exceptions;
 using Inventory.Domain.Entities;
 using MediatR;
@@ -6,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Inventory.Application.Features.InventoryItems.CreateInventoryItem;
 
-public class CreateInventoryItemHandler(IInventoryDbContext context)
+public class CreateInventoryItemHandler(IInventoryDbContext context, IInventoryMetrics metrics)
     : IRequestHandler<CreateInventoryItemCommand, Guid>
 {
     public async Task<Guid> Handle(CreateInventoryItemCommand request, CancellationToken cancellationToken)
@@ -31,6 +32,7 @@ public class CreateInventoryItemHandler(IInventoryDbContext context)
 
         context.InventoryItems.Add(item);
         await SaveChangesAsync(cancellationToken);
+        metrics.RecordInventoryItemCreated();
 
         return item.Id;
     }
