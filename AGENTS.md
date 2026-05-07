@@ -77,6 +77,20 @@ Important rules:
 - Keep queries and persistence behavior explicit and easy to trace.
 - Introduce a repository only when there is a concrete, service-specific need and the reason is explicitly documented.
 
+## Concurrency and Race Condition Strategy
+
+When implementing flows that can be affected by concurrent requests, such as stock reservation, checkout, payment confirmation, shipment state transitions, basket updates, or idempotent message handling, explicitly evaluate race condition risk before coding.
+
+Important rules:
+
+- Prefer service-owned consistency boundaries: the microservice that owns the data must protect its own invariants.
+- Use database-backed optimistic concurrency for persistent aggregate state when concurrent writes can occur, for example EF Core concurrency tokens or row version columns.
+- Use Redis only as a coordination or short-lived hold mechanism when appropriate; do not treat Redis locks or cache state as the only source of truth for business-critical consistency.
+- Prefer atomic Redis operations or Lua scripts over multi-command read-modify-write sequences when Redis is used for reservation or hold logic.
+- Keep idempotency explicit for external callbacks, message consumers, checkout retries, payment confirmations, and release/commit flows.
+- Do not rely on in-memory locks for cross-instance correctness in microservices.
+- If a requested implementation would create a race condition, skip a necessary concurrency guard, or use a best-practice-breaking approach for consistency-sensitive logic, warn the user before implementing it and explain the safer alternative.
+
 ## Application Architecture
 
 This repository uses CQRS, MediatR, and FluentValidation in the Application layer by default.
@@ -98,9 +112,14 @@ Important rules:
 
 Use layered exception types consistently.
 
+When creating Domain-layer exceptions for a service, use:
+
+`docs/templates/domain-exceptions.md`
+
 Important rules:
 
 - Define `DomainException` in the Domain layer for business rule violations.
+- Do not create typed Domain exceptions by default; introduce them only when there is a concrete handling, mapping, telemetry, retry, compensation, or user-facing categorization need.
 - Define Application-specific exceptions such as `NotFoundException`, `ConflictException`, and `ForbiddenException` in the Application layer.
 - Use FluentValidation's `ValidationException` for request validation failures.
 - Do not use `KeyNotFoundException`, `ArgumentException`, or `InvalidOperationException` as the default cross-layer exception contract for expected business/application flows.

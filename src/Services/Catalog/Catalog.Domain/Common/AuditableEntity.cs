@@ -26,4 +26,11 @@ public abstract class AuditableEntity<T> : BaseEntity<T>
         DeletedAtUtc = DateTime.UtcNow;
         DeletedBy = deletedBy;
     }
+
+    public virtual void Restore()
+    {
+        IsDeleted = false;
+        DeletedAtUtc = null;
+        DeletedBy = null;
+    }
 }
