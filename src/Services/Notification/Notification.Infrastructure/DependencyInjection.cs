@@ -1,9 +1,11 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MassTransit;
+using Notification.Application.Abstractions.Email;
 using Notification.Application.Abstractions.Messaging;
 using Notification.Application.Abstractions.Observability;
 using Notification.Infrastructure.Configuration;
+using Notification.Infrastructure.Email;
 using Notification.Infrastructure.Messaging;
 using Notification.Infrastructure.Observability;
 using Notification.Persistence.Context;
@@ -14,6 +16,7 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddScoped<IEmailSender, LoggingEmailSender>();
         services.AddScoped<IIntegrationEventPublisher, MassTransitIntegrationEventPublisher>();
         services.AddSingleton<INotificationMetrics, NotificationMetrics>();
         services.AddNotificationTracing(configuration);
