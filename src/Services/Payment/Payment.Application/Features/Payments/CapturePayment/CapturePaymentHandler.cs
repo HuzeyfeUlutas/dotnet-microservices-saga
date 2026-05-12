@@ -9,14 +9,14 @@ using Payment.Application.DTOs;
 using Payment.Application.Features.Payments;
 using PaymentEntity = Payment.Domain.Entities.Payment;
 
-namespace Payment.Application.Features.Payments.CompleteFake3ds;
+namespace Payment.Application.Features.Payments.CapturePayment;
 
-public class CompleteFake3dsHandler(
+public class CapturePaymentHandler(
     IPaymentDbContext context,
     IPaymentProvider paymentProvider,
-    IIntegrationEventPublisher integrationEventPublisher) : IRequestHandler<CompleteFake3dsCommand, PaymentDto>
+    IIntegrationEventPublisher integrationEventPublisher) : IRequestHandler<CapturePaymentCommand, PaymentDto>
 {
-    public async Task<PaymentDto> Handle(CompleteFake3dsCommand request, CancellationToken cancellationToken)
+    public async Task<PaymentDto> Handle(CapturePaymentCommand request, CancellationToken cancellationToken)
     {
         var payment = await context.Payments
             .Include(x => x.Attempts)
@@ -27,15 +27,16 @@ public class CompleteFake3dsHandler(
             throw new NotFoundException($"Payment '{request.PaymentId}' was not found.");
         }
 
-        var providerResult = await paymentProvider.CompleteAuthorizationAsync(payment, request.Approved, cancellationToken);
+        payment.StartCapture();
+        var providerResult = await paymentProvider.CaptureAsync(payment, cancellationToken);
 
         if (providerResult.Succeeded)
         {
-            payment.MarkAsAuthorized(providerResult.ProviderPaymentId, providerResult.ProviderTransactionId);
+            payment.MarkAsCaptured(providerResult.ProviderTransactionId);
         }
         else
         {
-            payment.MarkAuthorizationAsFailed(providerResult.FailureReason ?? "Payment authorization failed.");
+            payment.MarkCaptureAsFailed(providerResult.FailureReason ?? "Payment capture failed.");
         }
 
         await PublishResultEventAsync(payment, providerResult.Succeeded, cancellationToken);
@@ -46,13 +47,13 @@ public class CompleteFake3dsHandler(
 
     private Task PublishResultEventAsync(
         PaymentEntity payment,
-        bool authorized,
+        bool captured,
         CancellationToken cancellationToken)
     {
-        if (authorized)
+        if (captured)
         {
             return integrationEventPublisher.PublishAsync(
-                new PaymentAuthorized(
+                new PaymentCaptured(
                     Guid.NewGuid(),
                     payment.Id,
                     payment.OrderId,
@@ -63,13 +64,13 @@ public class CompleteFake3dsHandler(
         }
 
         return integrationEventPublisher.PublishAsync(
-            new PaymentAuthorizationFailed(
+            new PaymentCaptureFailed(
                 Guid.NewGuid(),
                 payment.Id,
                 payment.OrderId,
                 payment.Amount.Amount,
                 payment.Amount.Currency,
-                payment.FailureReason ?? "Payment authorization failed.",
+                payment.FailureReason ?? "Payment capture failed.",
                 DateTime.UtcNow),
             cancellationToken);
     }
