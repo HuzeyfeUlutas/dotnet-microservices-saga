@@ -1,3 +1,4 @@
+using System;
 using Catalog.Domain.Entities;
 using Catalog.Domain.Exceptions;
 using FluentAssertions;

@@ -1,3 +1,4 @@
+using System;
 using Catalog.Domain.Entities;
 using Catalog.Domain.Enums;
 using Catalog.Domain.Exceptions;
