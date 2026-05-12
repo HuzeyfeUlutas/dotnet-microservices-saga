@@ -151,6 +151,8 @@ services:
         condition: service_started
       notification-api:
         condition: service_started
+      payment-api:
+        condition: service_started
       otel-collector:
         condition: service_healthy
     ports:
@@ -269,6 +271,34 @@ services:
       OpenTelemetry__OtlpEndpoint: http://otel-collector:4317
     ports:
       - "8082:8080"
+
+  payment-api:
+    build:
+      context: .
+      dockerfile: src/Services/Payment/Payment.API/Dockerfile
+    container_name: payment-api
+    depends_on:
+      payment-db:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      otel-collector:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__PaymentDatabase: Host=payment-db;Port=5432;Database=paymentdb;Username=postgres;Password=postgres
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__VirtualHost: /
+      RabbitMq__Username: guest
+      RabbitMq__Password: guest
+      ElasticSearch__Uri: http://elasticsearch:9200
+      OpenTelemetry__OtlpEndpoint: http://otel-collector:4317
+    ports:
+      - "8083:8080"
 
 volumes:
   catalog-postgres-data:
