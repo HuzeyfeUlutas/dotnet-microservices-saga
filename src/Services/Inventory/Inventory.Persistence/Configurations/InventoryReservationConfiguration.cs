@@ -27,7 +27,8 @@ public class InventoryReservationConfiguration : IEntityTypeConfiguration<Invent
         builder.Property(x => x.ReservedAtUtc)
             .IsRequired();
 
-        builder.HasIndex(x => new { x.InventoryItemId, x.OrderId });
+        builder.HasIndex(x => new { x.InventoryItemId, x.OrderId })
+            .IsUnique();
         builder.HasIndex(x => x.OrderId);
         builder.HasIndex(x => x.ExpiresAtUtc);
     }
