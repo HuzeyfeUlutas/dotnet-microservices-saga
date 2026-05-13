@@ -5,6 +5,7 @@ using Catalog.Application.Features.Products.CreateProduct;
 using Catalog.Application.Features.Products.DeactivateProductVariant;
 using Catalog.Application.Features.Products.DeleteProduct;
 using Catalog.Application.Features.Products.GetProductById;
+using Catalog.Application.Features.Products.GetProductPurchaseInfo;
 using Catalog.Application.Features.Products.GetProducts;
 using Catalog.Application.Features.Products.UpdateProduct;
 using Catalog.Application.Features.Products.UpdateProductVariant;
@@ -32,6 +33,16 @@ public class ProductsController(ISender sender) : ControllerBase
     {
         var product = await sender.Send(new GetProductByIdQuery(id), cancellationToken);
         return Ok(product);
+    }
+
+    [HttpGet("{id:guid}/purchase-info")]
+    public async Task<IActionResult> GetPurchaseInfo(
+        Guid id,
+        [FromQuery] string sku,
+        CancellationToken cancellationToken)
+    {
+        var purchaseInfo = await sender.Send(new GetProductPurchaseInfoQuery(id, sku), cancellationToken);
+        return Ok(purchaseInfo);
     }
 
     [HttpGet]
