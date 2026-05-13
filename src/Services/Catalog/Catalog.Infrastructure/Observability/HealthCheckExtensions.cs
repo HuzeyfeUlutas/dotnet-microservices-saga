@@ -1,21 +1,31 @@
 using Catalog.Infrastructure.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using RabbitMQ.Client;
 
 namespace Catalog.Infrastructure.Observability;
 
 public static class HealthCheckExtensions
 {
+    internal const string ElasticsearchHealthClientName = "catalog-elasticsearch-health";
+
     public static IServiceCollection AddCatalogHealthChecks(this IServiceCollection services, IConfiguration configuration)
     {
         var rabbitMqOptions = BuildRabbitMqOptions(configuration);
+        var elasticSearchOptions = BuildElasticSearchOptions(configuration);
         var catalogConnectionString = configuration.GetConnectionString("CatalogDatabase")
                                      ?? throw new InvalidOperationException(
                                          "Connection string 'CatalogDatabase' was not found.");
 
+        services.AddSingleton(elasticSearchOptions);
+        services.AddHttpClient(ElasticsearchHealthClientName, client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(3);
+        });
+
         services.AddHealthChecks()
-            .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(), tags: ["live"])
+            .AddCheck("self", () => HealthCheckResult.Healthy(), tags: ["live"])
             .AddNpgSql(
                 catalogConnectionString,
                 name: "postgresql",
@@ -23,9 +33,24 @@ public static class HealthCheckExtensions
             .AddRabbitMQ(
                 _ => CreateRabbitMqConnectionAsync(rabbitMqOptions),
                 name: "rabbitmq",
+                tags: ["ready"])
+            .AddCheck<ElasticsearchHealthCheck>(
+                "elasticsearch",
+                failureStatus: HealthStatus.Unhealthy,
                 tags: ["ready"]);
 
         return services;
+    }
+
+    private static ElasticSearchOptions BuildElasticSearchOptions(IConfiguration configuration)
+    {
+        var section = configuration.GetSection(ElasticSearchOptions.SectionName);
+
+        return new ElasticSearchOptions
+        {
+            Uri = section["Uri"] ?? "http://localhost:9200",
+            IndexFormat = section["IndexFormat"] ?? "catalog-logs-{0:yyyy.MM}"
+        };
     }
 
     private static Task<IConnection> CreateRabbitMqConnectionAsync(RabbitMqOptions options)

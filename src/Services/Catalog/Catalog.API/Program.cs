@@ -55,11 +55,13 @@ app.UseHttpsRedirection();
 app.MapPrometheusScrapingEndpoint();
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
-    Predicate = registration => registration.Tags.Contains("live")
+    Predicate = registration => registration.Tags.Contains("live"),
+    ResponseWriter = HealthCheckResponseWriter.WriteAsync
 });
 app.MapHealthChecks("/health/ready", new HealthCheckOptions
 {
-    Predicate = registration => registration.Tags.Contains("ready")
+    Predicate = registration => registration.Tags.Contains("ready"),
+    ResponseWriter = HealthCheckResponseWriter.WriteAsync
 });
 
 app.MapControllers();
