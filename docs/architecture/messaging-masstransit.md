@@ -42,6 +42,29 @@ For `Catalog`, the current event publication flow is:
 4. `SaveChangesAsync` commits business data and outbox records in the same database transaction.
 5. The outbox delivery service forwards pending messages to `RabbitMQ`.
 
+### Catalog Product Events
+
+`Catalog` currently publishes product integration events from the Application layer through `IIntegrationEventPublisher`.
+
+Current product event contracts:
+
+```text
+ProductCreatedIntegrationEvent
+ProductPriceUpdatedIntegrationEvent
+ProductUnavailableIntegrationEvent
+ProductVariantUnavailableIntegrationEvent
+```
+
+Contract rules:
+
+- `ProductCreatedIntegrationEvent` identifies the product and its initial catalog references.
+- `ProductPriceUpdatedIntegrationEvent` carries old and new product price values.
+- `ProductUnavailableIntegrationEvent` is product-level and must include the affected variant/SKU snapshots so downstream consumers can invalidate availability/cache entries without querying Catalog again.
+- `ProductVariantUnavailableIntegrationEvent` is variant-level and must include `ProductId`, `VariantId`, `Sku`, and a reason.
+- Product and variant unavailable events are used by downstream services or cache updaters to mark SKUs unavailable for new basket/checkout attempts.
+
+Do not remove SKU information from unavailable events unless another explicit lookup contract replaces it.
+
 ## Consumer Guidance
 
 When consumers are added later:

@@ -55,6 +55,36 @@ wait for all downstream events to complete
 
 Those follow-up tasks should happen asynchronously after payment result events.
 
+## Catalog Data Boundary for Checkout
+
+Order/checkout should not copy Catalog tables or read Catalog's database directly.
+
+Catalog exposes the product data needed by Order through:
+
+```text
+GET /api/products/{productId}/purchase-info?sku={sku}
+```
+
+Order should use this read contract before creating an order line snapshot.
+
+The order line snapshot should keep the values needed to preserve the purchase record even if Catalog changes later:
+
+```text
+ProductId
+Sku
+ProductName
+VariantName
+UnitPrice
+Currency
+Quantity
+```
+
+Catalog currently returns `Currency` as `TRY` because Catalog does not yet model currency per product. If multi-currency pricing is introduced, Catalog must own the product price currency and the purchase-info response should stop using a hardcoded default.
+
+Checkout stock validation and reservation remain Inventory-owned. Catalog purchase-info only answers catalog purchasability, naming, and price snapshot data.
+
+Catalog purchasability should be treated as a pre-check. Inventory remains the source of truth for stock.
+
 ## PaymentAction Contract
 
 The frontend should not depend on one provider-specific shape such as only a redirect URL.

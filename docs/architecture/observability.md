@@ -130,12 +130,24 @@ Examples for services in this repository:
 
 ### Catalog Guidance
 
-For `Catalog`, the readiness endpoint should eventually validate:
+For `Catalog`, the readiness endpoint validates:
 
 - PostgreSQL connectivity
 - RabbitMQ availability
+- Elasticsearch availability
 
 The liveness endpoint should only indicate whether the API process is alive.
+
+Catalog health endpoints:
+
+```text
+GET /health/live
+GET /health/ready
+```
+
+Both endpoints return JSON health details including overall status, dependency entry status, duration, tags, and error message when available.
+
+Catalog readiness is expected to be unhealthy when only database containers are running and RabbitMQ or Elasticsearch are down. That is intentional because Catalog depends on messaging and centralized logging infrastructure at runtime.
 
 ### Local Development Stack
 
