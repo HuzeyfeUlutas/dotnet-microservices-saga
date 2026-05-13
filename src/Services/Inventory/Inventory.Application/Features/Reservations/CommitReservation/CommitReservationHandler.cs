@@ -23,9 +23,13 @@ public class CommitReservationHandler(IInventoryDbContext context, IInventoryMet
                 $"Inventory item for product '{request.ProductId}' and SKU '{request.Sku}' was not found.");
         }
 
-        item.CommitReservation(request.OrderId, DateTime.UtcNow);
+        var wasCommitted = item.CommitReservation(request.OrderId, DateTime.UtcNow);
         await SaveChangesAsync(cancellationToken);
-        metrics.RecordReservationCommitted();
+
+        if (wasCommitted)
+        {
+            metrics.RecordReservationCommitted();
+        }
     }
 
     private async Task SaveChangesAsync(CancellationToken cancellationToken)

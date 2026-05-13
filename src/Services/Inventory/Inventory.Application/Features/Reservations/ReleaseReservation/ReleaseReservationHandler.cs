@@ -23,9 +23,13 @@ public class ReleaseReservationHandler(IInventoryDbContext context, IInventoryMe
                 $"Inventory item for product '{request.ProductId}' and SKU '{request.Sku}' was not found.");
         }
 
-        item.ReleaseReservation(request.OrderId, DateTime.UtcNow);
+        var wasReleased = item.ReleaseReservation(request.OrderId, DateTime.UtcNow);
         await SaveChangesAsync(cancellationToken);
-        metrics.RecordReservationReleased();
+
+        if (wasReleased)
+        {
+            metrics.RecordReservationReleased();
+        }
     }
 
     private async Task SaveChangesAsync(CancellationToken cancellationToken)

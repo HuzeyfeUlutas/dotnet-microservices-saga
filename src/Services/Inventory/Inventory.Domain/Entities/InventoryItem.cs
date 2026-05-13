@@ -100,14 +100,16 @@ public class InventoryItem : AuditableEntity<Guid>
 
         EnsurePositiveQuantity(quantity);
 
+        var existingReservation = _reservations.SingleOrDefault(x => x.OrderId == orderId);
+
+        if (existingReservation is not null)
+        {
+            return HandleExistingReservationForReserve(existingReservation, quantity, expiresAtUtc);
+        }
+
         if (AvailableQuantity < quantity)
         {
             throw new DomainException("Insufficient stock.");
-        }
-
-        if (_reservations.Any(x => x.OrderId == orderId && x.Status == InventoryReservationStatus.Pending))
-        {
-            throw new DomainException("A pending reservation already exists for this order.");
         }
 
         var reservation = new InventoryReservation(Id, orderId, quantity, reservedAtUtc, expiresAtUtc);
@@ -119,34 +121,81 @@ public class InventoryItem : AuditableEntity<Guid>
         return reservation;
     }
 
-    public void ReleaseReservation(Guid orderId, DateTime releasedAtUtc)
+    public bool ReleaseReservation(Guid orderId, DateTime releasedAtUtc)
     {
-        var reservation = GetPendingReservation(orderId);
+        var reservation = GetReservation(orderId);
+
+        if (reservation.Status == InventoryReservationStatus.Released ||
+            reservation.Status == InventoryReservationStatus.Expired)
+        {
+            return false;
+        }
+
+        if (reservation.Status == InventoryReservationStatus.Confirmed)
+        {
+            throw new DomainException("Confirmed reservation cannot be released.");
+        }
 
         reservation.Release(releasedAtUtc);
         ReservedQuantity -= reservation.Quantity;
         AddStockMovement(StockMovementType.ReservationReleased, reservation.Quantity, "Reservation released", orderId.ToString());
+
+        return true;
     }
 
-    public void CommitReservation(Guid orderId, DateTime committedAtUtc)
+    public bool CommitReservation(Guid orderId, DateTime committedAtUtc)
     {
-        var reservation = GetPendingReservation(orderId);
+        var reservation = GetReservation(orderId);
+
+        if (reservation.Status == InventoryReservationStatus.Confirmed)
+        {
+            return false;
+        }
+
+        if (reservation.Status == InventoryReservationStatus.Released ||
+            reservation.Status == InventoryReservationStatus.Expired)
+        {
+            throw new DomainException("Released reservation cannot be committed.");
+        }
 
         reservation.Confirm(committedAtUtc);
         ReservedQuantity -= reservation.Quantity;
         TotalQuantity -= reservation.Quantity;
         AddStockMovement(StockMovementType.ReservationCommitted, reservation.Quantity, "Reservation committed", orderId.ToString());
+
+        return true;
     }
 
-    private InventoryReservation GetPendingReservation(Guid orderId)
+    private InventoryReservation GetReservation(Guid orderId)
     {
-        var reservation = _reservations.SingleOrDefault(x =>
-            x.OrderId == orderId &&
-            x.Status == InventoryReservationStatus.Pending);
+        var reservation = _reservations.SingleOrDefault(x => x.OrderId == orderId);
 
         if (reservation is null)
         {
-            throw new DomainException("Pending reservation was not found.");
+            throw new DomainException("Reservation was not found.");
+        }
+
+        return reservation;
+    }
+
+    private static InventoryReservation HandleExistingReservationForReserve(
+        InventoryReservation reservation,
+        int quantity,
+        DateTime? expiresAtUtc)
+    {
+        if (reservation.Status != InventoryReservationStatus.Pending)
+        {
+            throw new DomainException("Reservation already exists for this order.");
+        }
+
+        if (reservation.Quantity != quantity)
+        {
+            throw new DomainException("Pending reservation quantity does not match the retry request.");
+        }
+
+        if (reservation.ExpiresAtUtc != expiresAtUtc)
+        {
+            throw new DomainException("Pending reservation expiration does not match the retry request.");
         }
 
         return reservation;
