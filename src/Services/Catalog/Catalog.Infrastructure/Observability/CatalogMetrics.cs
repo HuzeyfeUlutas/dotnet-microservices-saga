@@ -14,6 +14,8 @@ public sealed class CatalogMetrics : ICatalogMetrics
         Meter.CreateCounter<long>("catalog.products.price_updated");
     private static readonly Counter<long> ProductUnavailableCounter =
         Meter.CreateCounter<long>("catalog.products.unavailable");
+    private static readonly Counter<long> ProductVariantUnavailableCounter =
+        Meter.CreateCounter<long>("catalog.product_variants.unavailable");
     private static readonly Counter<long> BrandCreatedCounter =
         Meter.CreateCounter<long>("catalog.brands.created");
     private static readonly Counter<long> BrandUpdatedCounter =
@@ -40,6 +42,11 @@ public sealed class CatalogMetrics : ICatalogMetrics
     public void RecordProductUnavailable(string reason)
     {
         ProductUnavailableCounter.Add(1, new KeyValuePair<string, object?>("reason", reason));
+    }
+
+    public void RecordProductVariantUnavailable(string reason)
+    {
+        ProductVariantUnavailableCounter.Add(1, new KeyValuePair<string, object?>("reason", reason));
     }
 
     public void RecordBrandCreated()

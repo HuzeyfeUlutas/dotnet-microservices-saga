@@ -1,11 +1,19 @@
+using Catalog.Application.Abstractions.Messaging;
+using Catalog.Application.Abstractions.Observability;
 using Catalog.Application.Abstractions.Persistence;
 using Catalog.Application.Common.Exceptions;
+using Catalog.Application.Contracts.IntegrationEvents.Products;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Catalog.Application.Features.Products.DeactivateProductVariant;
 
-public class DeactivateProductVariantHandler(ICatalogDbContext context)
+public class DeactivateProductVariantHandler(
+    ICatalogDbContext context,
+    IIntegrationEventPublisher eventPublisher,
+    ICatalogMetrics metrics,
+    ILogger<DeactivateProductVariantHandler> logger)
     : IRequestHandler<DeactivateProductVariantCommand>
 {
     public async Task Handle(DeactivateProductVariantCommand request, CancellationToken cancellationToken)
@@ -26,6 +34,23 @@ public class DeactivateProductVariantHandler(ICatalogDbContext context)
         }
 
         variant.Deactivate();
+        await eventPublisher.PublishAsync(
+            new ProductVariantUnavailableIntegrationEvent(
+                Guid.NewGuid(),
+                DateTime.UtcNow,
+                product.Id,
+                variant.Id,
+                variant.Sku,
+                "VariantDeactivated"),
+            cancellationToken);
+
         await context.SaveChangesAsync(cancellationToken);
+
+        metrics.RecordProductVariantUnavailable("VariantDeactivated");
+        logger.LogInformation(
+            "Product variant deactivated for {ProductId}, {VariantId} and {Sku}",
+            product.Id,
+            variant.Id,
+            variant.Sku);
     }
 }

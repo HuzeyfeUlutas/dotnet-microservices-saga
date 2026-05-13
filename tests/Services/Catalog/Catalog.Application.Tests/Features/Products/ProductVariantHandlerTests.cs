@@ -1,6 +1,8 @@
 using System.Threading;
 using System.Threading.Tasks;
+using Catalog.Application.Abstractions.Observability;
 using Catalog.Application.Common.Exceptions;
+using Catalog.Application.Contracts.IntegrationEvents.Products;
 using Catalog.Application.Features.Products.ActivateProductVariant;
 using Catalog.Application.Features.Products.AddProductVariant;
 using Catalog.Application.Features.Products.DeactivateProductVariant;
@@ -10,6 +12,8 @@ using Catalog.Domain.Entities;
 using Catalog.Domain.Enums;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using Xunit;
 
 namespace Catalog.Application.Tests.Features.Products;
@@ -140,11 +144,26 @@ public class ProductVariantHandlerTests
         var variant = product.AddVariant("128GB Black", "IPHONE15-128-BLACK");
         context.ProductVariants.Add(variant);
         await context.SaveChangesAsync();
-        var handler = new DeactivateProductVariantHandler(context);
+        var publisher = new CapturingIntegrationEventPublisher();
+        var metrics = Substitute.For<ICatalogMetrics>();
+        var handler = new DeactivateProductVariantHandler(
+            context,
+            publisher,
+            metrics,
+            NullLogger<DeactivateProductVariantHandler>.Instance);
 
         await handler.Handle(new DeactivateProductVariantCommand(product.Id, variant.Id), CancellationToken.None);
 
         variant.Status.Should().Be(VariantStatus.Inactive);
+        var integrationEvent = publisher.PublishedMessages
+            .Should().ContainSingle()
+            .Subject.Should().BeOfType<ProductVariantUnavailableIntegrationEvent>()
+            .Subject;
+        integrationEvent.ProductId.Should().Be(product.Id);
+        integrationEvent.VariantId.Should().Be(variant.Id);
+        integrationEvent.Sku.Should().Be("IPHONE15-128-BLACK");
+        integrationEvent.Reason.Should().Be("VariantDeactivated");
+        metrics.Received(1).RecordProductVariantUnavailable("VariantDeactivated");
     }
 
     private static async Task<Product> SeedProductAsync(Catalog.Persistence.Context.CatalogDbContext context)
