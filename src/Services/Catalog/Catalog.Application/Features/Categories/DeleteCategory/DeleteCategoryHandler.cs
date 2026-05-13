@@ -20,6 +20,20 @@ public class DeleteCategoryHandler(
             throw new NotFoundException($"Category '{request.CategoryId}' was not found.");
         }
 
+        var hasProducts = await context.Products.AnyAsync(x => x.CategoryId == request.CategoryId, cancellationToken);
+        if (hasProducts)
+        {
+            throw new ConflictException("Category cannot be deleted because it has products.");
+        }
+
+        var hasChildCategories = await context.Categories.AnyAsync(
+            x => x.ParentCategoryId == request.CategoryId,
+            cancellationToken);
+        if (hasChildCategories)
+        {
+            throw new ConflictException("Category cannot be deleted because it has child categories.");
+        }
+
         category.MarkAsDeleted();
         await context.SaveChangesAsync(cancellationToken);
 

@@ -20,16 +20,28 @@ public class CreateProductHandler(
 {
     public async Task<Guid> Handle(CreateProductCommand request, CancellationToken cancellationToken)
     {
-        var brandExists = await context.Brands.AnyAsync(x => x.Id == request.BrandId, cancellationToken);
-        if (!brandExists)
+        var brand = await context.Brands
+            .FirstOrDefaultAsync(x => x.Id == request.BrandId, cancellationToken);
+        if (brand is null)
         {
             throw new NotFoundException($"Brand '{request.BrandId}' was not found.");
         }
 
-        var categoryExists = await context.Categories.AnyAsync(x => x.Id == request.CategoryId, cancellationToken);
-        if (!categoryExists)
+        if (!brand.IsActive)
+        {
+            throw new ConflictException("Product cannot use an inactive brand.");
+        }
+
+        var category = await context.Categories
+            .FirstOrDefaultAsync(x => x.Id == request.CategoryId, cancellationToken);
+        if (category is null)
         {
             throw new NotFoundException($"Category '{request.CategoryId}' was not found.");
+        }
+
+        if (!category.IsActive)
+        {
+            throw new ConflictException("Product cannot use an inactive category.");
         }
 
         var product = new Product(

@@ -20,6 +20,12 @@ public class DeleteBrandHandler(
             throw new NotFoundException($"Brand '{request.BrandId}' was not found.");
         }
 
+        var hasProducts = await context.Products.AnyAsync(x => x.BrandId == request.BrandId, cancellationToken);
+        if (hasProducts)
+        {
+            throw new ConflictException("Brand cannot be deleted because it has products.");
+        }
+
         brand.MarkAsDeleted();
         await context.SaveChangesAsync(cancellationToken);
 

@@ -20,6 +20,14 @@ public class UpdateBrandHandler(
             throw new NotFoundException($"Brand '{request.BrandId}' was not found.");
         }
 
+        var normalizedName = request.Name.Trim();
+        var nameExists = await context.Brands
+            .AnyAsync(x => x.Id != request.BrandId && x.Name.ToLower() == normalizedName.ToLower(), cancellationToken);
+        if (nameExists)
+        {
+            throw new ConflictException($"Brand name '{normalizedName}' already exists.");
+        }
+
         brand.UpdateDetails(request.Name, request.Description);
 
         if (request.IsActive)

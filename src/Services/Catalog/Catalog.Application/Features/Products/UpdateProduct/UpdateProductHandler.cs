@@ -25,20 +25,37 @@ public class UpdateProductHandler(
             throw new NotFoundException($"Product '{request.ProductId}' was not found.");
         }
 
-        var brandExists = await context.Brands.AnyAsync(x => x.Id == request.BrandId, cancellationToken);
-        if (!brandExists)
+        var brand = await context.Brands
+            .FirstOrDefaultAsync(x => x.Id == request.BrandId, cancellationToken);
+        if (brand is null)
         {
             throw new NotFoundException($"Brand '{request.BrandId}' was not found.");
         }
 
-        var categoryExists = await context.Categories.AnyAsync(x => x.Id == request.CategoryId, cancellationToken);
-        if (!categoryExists)
+        if (!brand.IsActive)
+        {
+            throw new ConflictException("Product cannot use an inactive brand.");
+        }
+
+        var category = await context.Categories
+            .FirstOrDefaultAsync(x => x.Id == request.CategoryId, cancellationToken);
+        if (category is null)
         {
             throw new NotFoundException($"Category '{request.CategoryId}' was not found.");
         }
 
+        if (!category.IsActive)
+        {
+            throw new ConflictException("Product cannot use an inactive category.");
+        }
+
         var currentPrice = product.Price;
         var currentStatus = product.Status;
+
+        if (currentStatus == ProductStatus.Archived && request.Status == ProductStatus.Active)
+        {
+            throw new ConflictException("Archived product cannot be reactivated.");
+        }
 
         product.UpdateDetails(request.Name, request.Description);
         product.ChangePrice(request.Price);

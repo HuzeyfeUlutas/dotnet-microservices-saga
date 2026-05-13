@@ -15,6 +15,14 @@ public class CreateCategoryHandler(
 {
     public async Task<Guid> Handle(CreateCategoryCommand request, CancellationToken cancellationToken)
     {
+        var normalizedName = request.Name.Trim();
+        var nameExists = await context.Categories
+            .AnyAsync(x => x.Name.ToLower() == normalizedName.ToLower(), cancellationToken);
+        if (nameExists)
+        {
+            throw new ConflictException($"Category name '{normalizedName}' already exists.");
+        }
+
         if (request.ParentCategoryId.HasValue)
         {
             var parentExists = await context.Categories.AnyAsync(x => x.Id == request.ParentCategoryId.Value, cancellationToken);
