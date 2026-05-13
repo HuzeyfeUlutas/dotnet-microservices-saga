@@ -1,9 +1,13 @@
 using Catalog.API.Contracts.Products;
+using Catalog.Application.Features.Products.ActivateProductVariant;
+using Catalog.Application.Features.Products.AddProductVariant;
 using Catalog.Application.Features.Products.CreateProduct;
+using Catalog.Application.Features.Products.DeactivateProductVariant;
 using Catalog.Application.Features.Products.DeleteProduct;
 using Catalog.Application.Features.Products.GetProductById;
 using Catalog.Application.Features.Products.GetProducts;
 using Catalog.Application.Features.Products.UpdateProduct;
+using Catalog.Application.Features.Products.UpdateProductVariant;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
@@ -50,6 +54,55 @@ public class ProductsController(ISender sender) : ControllerBase
                 request.CategoryId,
                 request.Status),
             cancellationToken);
+
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/variants")]
+    public async Task<IActionResult> AddVariant(
+        Guid id,
+        [FromBody] AddProductVariantRequest request,
+        CancellationToken cancellationToken)
+    {
+        var variantId = await sender.Send(
+            new AddProductVariantCommand(id, request.Name, request.Sku),
+            cancellationToken);
+
+        return CreatedAtAction(nameof(GetById), new { id }, new { id = variantId });
+    }
+
+    [HttpPut("{id:guid}/variants/{variantId:guid}")]
+    public async Task<IActionResult> UpdateVariant(
+        Guid id,
+        Guid variantId,
+        [FromBody] UpdateProductVariantRequest request,
+        CancellationToken cancellationToken)
+    {
+        await sender.Send(
+            new UpdateProductVariantCommand(id, variantId, request.Name, request.Sku),
+            cancellationToken);
+
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/variants/{variantId:guid}/activate")]
+    public async Task<IActionResult> ActivateVariant(
+        Guid id,
+        Guid variantId,
+        CancellationToken cancellationToken)
+    {
+        await sender.Send(new ActivateProductVariantCommand(id, variantId), cancellationToken);
+
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/variants/{variantId:guid}/deactivate")]
+    public async Task<IActionResult> DeactivateVariant(
+        Guid id,
+        Guid variantId,
+        CancellationToken cancellationToken)
+    {
+        await sender.Send(new DeactivateProductVariantCommand(id, variantId), cancellationToken);
 
         return NoContent();
     }
