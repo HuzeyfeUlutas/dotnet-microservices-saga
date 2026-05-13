@@ -13,11 +13,14 @@ public class CommitReservationHandler(IInventoryDbContext context, IInventoryMet
     {
         var item = await context.InventoryItems
             .Include(x => x.Reservations)
-            .FirstOrDefaultAsync(x => x.ProductId == request.ProductId, cancellationToken);
+            .FirstOrDefaultAsync(
+                x => x.ProductId == request.ProductId && x.Sku == request.Sku,
+                cancellationToken);
 
         if (item is null)
         {
-            throw new NotFoundException($"Inventory item for product '{request.ProductId}' was not found.");
+            throw new NotFoundException(
+                $"Inventory item for product '{request.ProductId}' and SKU '{request.Sku}' was not found.");
         }
 
         item.CommitReservation(request.OrderId, DateTime.UtcNow);

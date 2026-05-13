@@ -9,6 +9,9 @@ public class CommitReservationValidator : AbstractValidator<CommitReservationCom
         RuleFor(x => x.ProductId)
             .NotEmpty();
 
+        RuleFor(x => x.Sku)
+            .NotEmpty();
+
         RuleFor(x => x.OrderId)
             .NotEmpty();
     }

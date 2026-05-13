@@ -20,6 +20,7 @@ public class ReservationsController(ISender sender) : ControllerBase
         var reservationId = await sender.Send(
             new ReserveStockCommand(
                 request.ProductId,
+                request.Sku,
                 request.OrderId,
                 request.Quantity,
                 request.ExpiresAtUtc),
@@ -43,7 +44,7 @@ public class ReservationsController(ISender sender) : ControllerBase
         CancellationToken cancellationToken)
     {
         await sender.Send(
-            new CommitReservationCommand(request.ProductId, request.OrderId),
+            new CommitReservationCommand(request.ProductId, request.Sku, request.OrderId),
             cancellationToken);
 
         return NoContent();
@@ -55,7 +56,7 @@ public class ReservationsController(ISender sender) : ControllerBase
         CancellationToken cancellationToken)
     {
         await sender.Send(
-            new ReleaseReservationCommand(request.ProductId, request.OrderId),
+            new ReleaseReservationCommand(request.ProductId, request.Sku, request.OrderId),
             cancellationToken);
 
         return NoContent();

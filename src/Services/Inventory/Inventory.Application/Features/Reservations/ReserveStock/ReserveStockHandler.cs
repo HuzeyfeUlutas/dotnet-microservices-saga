@@ -15,11 +15,14 @@ public class ReserveStockHandler(IInventoryDbContext context, IInventoryMetrics 
     {
         var item = await context.InventoryItems
             .Include(x => x.Reservations)
-            .FirstOrDefaultAsync(x => x.ProductId == request.ProductId, cancellationToken);
+            .FirstOrDefaultAsync(
+                x => x.ProductId == request.ProductId && x.Sku == request.Sku,
+                cancellationToken);
 
         if (item is null)
         {
-            throw new NotFoundException($"Inventory item for product '{request.ProductId}' was not found.");
+            throw new NotFoundException(
+                $"Inventory item for product '{request.ProductId}' and SKU '{request.Sku}' was not found.");
         }
 
         var reservation = ReserveItem(request, item);
