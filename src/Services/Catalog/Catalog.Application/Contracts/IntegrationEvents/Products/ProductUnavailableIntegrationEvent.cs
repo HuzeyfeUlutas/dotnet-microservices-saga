@@ -4,4 +4,9 @@ public sealed record ProductUnavailableIntegrationEvent(
     Guid EventId,
     DateTime OccurredAtUtc,
     Guid ProductId,
-    string Reason);
+    string Reason,
+    IReadOnlyCollection<ProductUnavailableVariantSnapshot> Variants);
+
+public sealed record ProductUnavailableVariantSnapshot(
+    Guid VariantId,
+    string Sku);

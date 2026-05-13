@@ -3,6 +3,7 @@ using Catalog.Application.Abstractions.Observability;
 using Catalog.Application.Abstractions.Persistence;
 using Catalog.Application.Common.Exceptions;
 using Catalog.Application.Contracts.IntegrationEvents.Products;
+using Catalog.Domain.Entities;
 using Catalog.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -19,7 +20,9 @@ public class UpdateProductHandler(
 {
     public async Task Handle(UpdateProductCommand request, CancellationToken cancellationToken)
     {
-        var product = await context.Products.FirstOrDefaultAsync(x => x.Id == request.ProductId, cancellationToken);
+        var product = await context.Products
+            .Include(x => x.Variants)
+            .FirstOrDefaultAsync(x => x.Id == request.ProductId, cancellationToken);
         if (product is null)
         {
             throw new NotFoundException($"Product '{request.ProductId}' was not found.");
@@ -98,7 +101,8 @@ public class UpdateProductHandler(
                     Guid.NewGuid(),
                     DateTime.UtcNow,
                     product.Id,
-                    "Deactivated"),
+                    "Deactivated",
+                    BuildVariantSnapshots(product)),
                 cancellationToken);
         }
 
@@ -121,5 +125,12 @@ public class UpdateProductHandler(
                 "Product deactivated for {ProductId}",
                 product.Id);
         }
+    }
+
+    private static IReadOnlyCollection<ProductUnavailableVariantSnapshot> BuildVariantSnapshots(Product product)
+    {
+        return product.Variants
+            .Select(x => new ProductUnavailableVariantSnapshot(x.Id, x.Sku))
+            .ToArray();
     }
 }

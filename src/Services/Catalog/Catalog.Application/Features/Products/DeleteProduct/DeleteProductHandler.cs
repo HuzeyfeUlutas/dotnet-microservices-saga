@@ -3,6 +3,7 @@ using Catalog.Application.Abstractions.Observability;
 using Catalog.Application.Abstractions.Persistence;
 using Catalog.Application.Common.Exceptions;
 using Catalog.Application.Contracts.IntegrationEvents.Products;
+using Catalog.Domain.Entities;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -18,7 +19,9 @@ public class DeleteProductHandler(
 {
     public async Task Handle(DeleteProductCommand request, CancellationToken cancellationToken)
     {
-        var product = await context.Products.FirstOrDefaultAsync(x => x.Id == request.ProductId, cancellationToken);
+        var product = await context.Products
+            .Include(x => x.Variants)
+            .FirstOrDefaultAsync(x => x.Id == request.ProductId, cancellationToken);
         if (product is null)
         {
             throw new NotFoundException($"Product '{request.ProductId}' was not found.");
@@ -30,7 +33,8 @@ public class DeleteProductHandler(
                 Guid.NewGuid(),
                 DateTime.UtcNow,
                 product.Id,
-                "Deleted"),
+                "Deleted",
+                BuildVariantSnapshots(product)),
             cancellationToken);
 
         await context.SaveChangesAsync(cancellationToken);
@@ -39,5 +43,12 @@ public class DeleteProductHandler(
         logger.LogInformation(
             "Product marked as deleted for {ProductId}",
             product.Id);
+    }
+
+    private static IReadOnlyCollection<ProductUnavailableVariantSnapshot> BuildVariantSnapshots(Product product)
+    {
+        return product.Variants
+            .Select(x => new ProductUnavailableVariantSnapshot(x.Id, x.Sku))
+            .ToArray();
     }
 }

@@ -56,7 +56,9 @@ public class UpdateProductHandlerTests
         var (brand, category) = await CatalogApplicationTestData.SeedBrandAndCategoryAsync(context);
         var product = new Product("iPhone 15", "Smartphone", 49999.99m, brand.Id, category.Id);
         product.Activate();
+        var variant = product.AddVariant("128GB Black", "IPHONE15-128-BLACK");
         context.Products.Add(product);
+        context.ProductVariants.Add(variant);
         await context.SaveChangesAsync();
         var publisher = new CapturingIntegrationEventPublisher();
         var metrics = Substitute.For<ICatalogMetrics>();
@@ -72,6 +74,9 @@ public class UpdateProductHandlerTests
             .Subject;
         publishedEvent.ProductId.Should().Be(product.Id);
         publishedEvent.Reason.Should().Be("Deactivated");
+        var variantSnapshot = publishedEvent.Variants.Should().ContainSingle().Subject;
+        variantSnapshot.VariantId.Should().Be(variant.Id);
+        variantSnapshot.Sku.Should().Be("IPHONE15-128-BLACK");
 
         metrics.Received(1).RecordProductUnavailable("Deactivated");
     }
