@@ -1,5 +1,6 @@
 using Catalog.Application.Abstractions.Persistence;
 using Catalog.Domain.Entities;
+using Catalog.Persistence.Seed;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,6 +17,7 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbCo
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(CatalogDbContext).Assembly);
+        modelBuilder.ApplyCatalogSeedData();
         modelBuilder.AddInboxStateEntity();
         modelBuilder.AddOutboxMessageEntity();
         modelBuilder.AddOutboxStateEntity();
