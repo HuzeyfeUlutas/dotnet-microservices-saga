@@ -8,6 +8,8 @@ public class HandleProviderCallbackHandler(ISender sender) : IRequestHandler<Han
 {
     public Task<PaymentDto> Handle(HandleProviderCallbackCommand request, CancellationToken cancellationToken)
     {
-        return sender.Send(new CompleteFake3dsCommand(request.PaymentId, request.Approved), cancellationToken);
+        return sender.Send(
+            new CompleteFake3dsCommand(request.PaymentId, request.Approved, request.ProviderEventId),
+            cancellationToken);
     }
 }

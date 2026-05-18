@@ -5,6 +5,7 @@ using Payment.Application.Abstractions.Providers;
 using Payment.Application.Common.Exceptions;
 using Payment.Application.DTOs;
 using Payment.Application.Features.Payments;
+using Payment.Domain.Enums;
 using Payment.Domain.ValueObjects;
 using PaymentEntity = Payment.Domain.Entities.Payment;
 
@@ -22,7 +23,7 @@ public class CreatePaymentHandler(
 
         if (existingPayment is not null)
         {
-            var existingAction = await paymentProvider.StartAuthorizationAsync(existingPayment, cancellationToken);
+            var existingAction = ResolveExistingAction(existingPayment);
             return new CreatePaymentResultDto(existingPayment.ToDto(), existingAction);
         }
 
@@ -49,5 +50,22 @@ public class CreatePaymentHandler(
         }
 
         return new CreatePaymentResultDto(payment.ToDto(), action);
+    }
+
+    private static PaymentActionDto ResolveExistingAction(PaymentEntity payment)
+    {
+        if (payment.Status == PaymentStatus.RequiresAction)
+        {
+            var latestAuthorizationAttempt = payment.Attempts
+                .Where(x => x.Type == PaymentAttemptType.Authorization)
+                .OrderByDescending(x => x.AttemptNumber)
+                .FirstOrDefault();
+
+            return new PaymentActionDto(
+                Type: "Redirect",
+                RedirectUrl: latestAuthorizationAttempt?.ProviderActionReference);
+        }
+
+        return new PaymentActionDto(Type: "None");
     }
 }

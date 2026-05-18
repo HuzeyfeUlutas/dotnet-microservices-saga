@@ -10,6 +10,7 @@ public class PaymentDbContext(DbContextOptions<PaymentDbContext> options) : DbCo
 {
     public DbSet<PaymentEntity> Payments => Set<PaymentEntity>();
     public DbSet<PaymentAttempt> PaymentAttempts => Set<PaymentAttempt>();
+    public DbSet<ProcessedProviderCallback> ProcessedProviderCallbacks => Set<ProcessedProviderCallback>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

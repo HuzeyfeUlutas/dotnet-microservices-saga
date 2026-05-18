@@ -8,6 +8,7 @@ public interface IPaymentDbContext
 {
     DbSet<PaymentEntity> Payments { get; }
     DbSet<PaymentAttempt> PaymentAttempts { get; }
+    DbSet<ProcessedProviderCallback> ProcessedProviderCallbacks { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

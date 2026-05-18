@@ -5,6 +5,7 @@ using Payment.Application.Abstractions.Messaging;
 using Payment.Application.Abstractions.Providers;
 using Payment.Infrastructure.Configuration;
 using Payment.Infrastructure.Messaging;
+using Payment.Infrastructure.Messaging.Consumers;
 using Payment.Infrastructure.Providers;
 using Payment.Persistence.Context;
 
@@ -20,6 +21,8 @@ public static class DependencyInjection
         services.AddMassTransit(x =>
         {
             x.SetKebabCaseEndpointNameFormatter();
+            x.AddConsumer<CapturePaymentRequestedConsumer>();
+            x.AddConsumer<RefundPaymentRequestedConsumer>();
 
             x.AddEntityFrameworkOutbox<PaymentDbContext>(o =>
             {

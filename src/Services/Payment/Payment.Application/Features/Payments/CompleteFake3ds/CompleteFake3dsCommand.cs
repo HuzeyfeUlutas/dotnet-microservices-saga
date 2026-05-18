@@ -3,4 +3,7 @@ using Payment.Application.DTOs;
 
 namespace Payment.Application.Features.Payments.CompleteFake3ds;
 
-public sealed record CompleteFake3dsCommand(Guid PaymentId, bool Approved) : IRequest<PaymentDto>;
+public sealed record CompleteFake3dsCommand(
+    Guid PaymentId,
+    bool Approved,
+    string? ProviderEventId = null) : IRequest<PaymentDto>;
