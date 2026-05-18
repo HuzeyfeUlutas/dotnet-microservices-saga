@@ -6,6 +6,7 @@ public sealed record NotificationMessageListItemDto(
     Guid Id,
     NotificationChannel Channel,
     string NotificationType,
+    string RecipientId,
     string Recipient,
     string Subject,
     NotificationMessageStatus Status,

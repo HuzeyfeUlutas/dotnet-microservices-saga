@@ -18,6 +18,7 @@ public class GetNotificationByIdHandler(INotificationDbContext context)
                 x.Id,
                 x.Channel,
                 x.NotificationType,
+                x.RecipientId,
                 x.Recipient,
                 x.Subject,
                 x.Body,

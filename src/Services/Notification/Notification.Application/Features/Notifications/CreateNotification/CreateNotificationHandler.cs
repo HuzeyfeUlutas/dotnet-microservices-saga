@@ -17,23 +17,32 @@ public class CreateNotificationHandler(
     {
         if (request.SourceEventId.HasValue)
         {
-            var alreadyExists = await context.NotificationMessages.AnyAsync(
-                x => x.SourceEventId == request.SourceEventId &&
-                     x.NotificationType == request.NotificationType &&
-                     x.Recipient == request.Recipient,
-                cancellationToken);
+            var existingNotificationId = await context.NotificationMessages
+                .Where(x => x.SourceEventId == request.SourceEventId &&
+                            x.NotificationType == request.NotificationType &&
+                            x.RecipientId == request.RecipientId)
+                .Select(x => (Guid?)x.Id)
+                .FirstOrDefaultAsync(cancellationToken);
 
-            if (alreadyExists)
+            if (existingNotificationId.HasValue)
             {
-                throw new ConflictException(
-                    $"Notification for event '{request.SourceEventId}' and recipient '{request.Recipient}' already exists.");
+                return existingNotificationId.Value;
             }
         }
 
         var correlationId = request.CorrelationId ?? correlationContextAccessor.CorrelationId;
+        var preference = await context.RecipientPreferences
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                x => x.RecipientId == request.RecipientId &&
+                     x.Channel == NotificationChannel.Email &&
+                     x.NotificationType == request.NotificationType,
+                cancellationToken);
+
         var notification = new NotificationMessage(
             NotificationChannel.Email,
             request.NotificationType,
+            request.RecipientId,
             request.Recipient,
             request.Subject,
             request.Body,
@@ -41,21 +50,48 @@ public class CreateNotificationHandler(
             correlationId,
             request.ScheduledAtUtc);
 
+        if (preference is not null && !preference.IsEnabled)
+        {
+            notification.Skip(preference.DisabledReason ?? "Recipient preference disabled.");
+        }
+
         context.NotificationMessages.Add(notification);
-        await SaveChangesAsync(cancellationToken);
+        var savedNotificationId = await SaveChangesAsync(notification, cancellationToken);
         metrics.RecordNotificationCreated();
 
-        return notification.Id;
+        if (notification.Status == NotificationMessageStatus.Skipped)
+        {
+            metrics.RecordNotificationSkipped();
+        }
+
+        return savedNotificationId;
     }
 
-    private async Task SaveChangesAsync(CancellationToken cancellationToken)
+    private async Task<Guid> SaveChangesAsync(NotificationMessage notification, CancellationToken cancellationToken)
     {
         try
         {
             await context.SaveChangesAsync(cancellationToken);
+            return notification.Id;
         }
         catch (DbUpdateException exception)
         {
+            if (notification.SourceEventId.HasValue)
+            {
+                var existingNotificationId = await context.NotificationMessages
+                    .AsNoTracking()
+                    .Where(x => x.SourceEventId == notification.SourceEventId &&
+                                x.NotificationType == notification.NotificationType &&
+                                x.RecipientId == notification.RecipientId)
+                    .Select(x => (Guid?)x.Id)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (existingNotificationId.HasValue)
+                {
+                    return existingNotificationId.Value;
+                }
+            }
+
             throw new ConflictException($"Notification could not be created. {exception.Message}");
         }
     }

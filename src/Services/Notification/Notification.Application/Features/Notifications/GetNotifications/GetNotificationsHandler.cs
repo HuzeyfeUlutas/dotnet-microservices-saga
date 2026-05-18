@@ -35,6 +35,7 @@ public class GetNotificationsHandler(INotificationDbContext context)
                 x.Id,
                 x.Channel,
                 x.NotificationType,
+                x.RecipientId,
                 x.Recipient,
                 x.Subject,
                 x.Status,

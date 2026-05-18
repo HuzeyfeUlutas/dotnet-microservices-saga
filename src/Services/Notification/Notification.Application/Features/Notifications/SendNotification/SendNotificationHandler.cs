@@ -13,6 +13,8 @@ public class SendNotificationHandler(
     IEmailSender emailSender,
     INotificationMetrics metrics) : IRequestHandler<SendNotificationCommand, EmailSendResult>
 {
+    private const string PreferencePolicyProvider = "PreferencePolicy";
+
     public async Task<EmailSendResult> Handle(SendNotificationCommand request, CancellationToken cancellationToken)
     {
         var notification = await context.NotificationMessages
@@ -29,12 +31,60 @@ public class SendNotificationHandler(
             throw new ConflictException("Only email notifications can be sent by the email sender.");
         }
 
+        if (notification.Status == NotificationMessageStatus.Sent)
+        {
+            var latestAttempt = notification.DeliveryAttempts
+                .OrderByDescending(x => x.AttemptNumber)
+                .FirstOrDefault();
+
+            return EmailSendResult.Success(
+                latestAttempt?.Provider ?? emailSender.ProviderName,
+                latestAttempt?.ProviderMessageId);
+        }
+
+        if (notification.Status == NotificationMessageStatus.Skipped)
+        {
+            return EmailSendResult.SkippedResult(
+                PreferencePolicyProvider,
+                notification.SkipReason ?? "Notification was skipped.");
+        }
+
+        if (notification.Status == NotificationMessageStatus.Processing)
+        {
+            throw new ConflictException("Notification is already being processed.");
+        }
+
+        if (notification.Status == NotificationMessageStatus.Cancelled)
+        {
+            throw new ConflictException("Cancelled notification cannot be sent.");
+        }
+
         if (notification.ScheduledAtUtc.HasValue && notification.ScheduledAtUtc.Value > DateTime.UtcNow)
         {
             throw new ConflictException("Scheduled notification cannot be sent before its scheduled date.");
         }
 
-        notification.StartDeliveryAttempt(emailSender.ProviderName);
+        var preference = await context.RecipientPreferences
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                x => x.RecipientId == notification.RecipientId &&
+                     x.Channel == notification.Channel &&
+                     x.NotificationType == notification.NotificationType,
+                cancellationToken);
+
+        if (preference is not null && !preference.IsEnabled)
+        {
+            notification.Skip(preference.DisabledReason ?? "Recipient preference disabled.");
+            await SaveChangesAsync(cancellationToken);
+            metrics.RecordNotificationSkipped();
+
+            return EmailSendResult.SkippedResult(
+                PreferencePolicyProvider,
+                notification.SkipReason ?? "Recipient preference disabled.");
+        }
+
+        var attempt = notification.StartDeliveryAttempt(emailSender.ProviderName);
+        context.NotificationDeliveryAttempts.Add(attempt);
         await SaveChangesAsync(cancellationToken);
         metrics.RecordDeliveryAttemptStarted();
 

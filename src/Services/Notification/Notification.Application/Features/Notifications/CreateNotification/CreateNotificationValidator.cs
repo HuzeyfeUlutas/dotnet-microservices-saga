@@ -10,6 +10,10 @@ public class CreateNotificationValidator : AbstractValidator<CreateNotificationC
             .NotEmpty()
             .MaximumLength(100);
 
+        RuleFor(x => x.RecipientId)
+            .NotEmpty()
+            .MaximumLength(100);
+
         RuleFor(x => x.Recipient)
             .NotEmpty()
             .EmailAddress()

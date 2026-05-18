@@ -15,6 +15,7 @@ public class NotificationMessage : AuditableEntity<Guid>
     public NotificationMessage(
         NotificationChannel channel,
         string notificationType,
+        string recipientId,
         string recipient,
         string subject,
         string body,
@@ -23,6 +24,7 @@ public class NotificationMessage : AuditableEntity<Guid>
         DateTime? scheduledAtUtc = null) : base(Guid.NewGuid())
     {
         SetNotificationType(notificationType);
+        SetRecipientId(recipientId);
         SetRecipient(recipient);
         SetContent(subject, body);
 
@@ -36,6 +38,7 @@ public class NotificationMessage : AuditableEntity<Guid>
 
     public NotificationChannel Channel { get; private set; }
     public string NotificationType { get; private set; } = null!;
+    public string RecipientId { get; private set; } = null!;
     public string Recipient { get; private set; } = null!;
     public string Subject { get; private set; } = null!;
     public string Body { get; private set; } = null!;
@@ -51,6 +54,7 @@ public class NotificationMessage : AuditableEntity<Guid>
     public string? CancellationReason { get; private set; }
     public DateTime? SkippedAtUtc { get; private set; }
     public string? SkipReason { get; private set; }
+    public long ConcurrencyVersion { get; private set; }
     public IReadOnlyCollection<NotificationDeliveryAttempt> DeliveryAttempts => _deliveryAttempts.AsReadOnly();
 
     public NotificationDeliveryAttempt StartDeliveryAttempt(string provider)
@@ -61,6 +65,8 @@ public class NotificationMessage : AuditableEntity<Guid>
         ProcessingStartedAtUtc = DateTime.UtcNow;
         FailureReason = null;
         FailedAtUtc = null;
+        UpdatedAtUtc = DateTime.UtcNow;
+        ConcurrencyVersion++;
 
         var attempt = new NotificationDeliveryAttempt(Id, _deliveryAttempts.Count + 1, provider);
         _deliveryAttempts.Add(attempt);
@@ -79,6 +85,8 @@ public class NotificationMessage : AuditableEntity<Guid>
         SentAtUtc = DateTime.UtcNow;
         FailedAtUtc = null;
         FailureReason = null;
+        UpdatedAtUtc = DateTime.UtcNow;
+        ConcurrencyVersion++;
 
         var currentAttempt = GetCurrentAttemptOrDefault();
         if (currentAttempt is not null && currentAttempt.Status == NotificationDeliveryAttemptStatus.Processing)
@@ -97,6 +105,8 @@ public class NotificationMessage : AuditableEntity<Guid>
         Status = NotificationMessageStatus.Failed;
         FailedAtUtc = DateTime.UtcNow;
         FailureReason = NormalizeRequired(reason, "Failure reason cannot be empty.");
+        UpdatedAtUtc = DateTime.UtcNow;
+        ConcurrencyVersion++;
 
         var currentAttempt = GetCurrentAttemptOrDefault();
         if (currentAttempt is not null && currentAttempt.Status == NotificationDeliveryAttemptStatus.Processing)
@@ -115,6 +125,8 @@ public class NotificationMessage : AuditableEntity<Guid>
         Status = NotificationMessageStatus.Cancelled;
         CancelledAtUtc = DateTime.UtcNow;
         CancellationReason = NormalizeRequired(reason, "Cancellation reason cannot be empty.");
+        UpdatedAtUtc = DateTime.UtcNow;
+        ConcurrencyVersion++;
     }
 
     public void Skip(string reason)
@@ -127,10 +139,17 @@ public class NotificationMessage : AuditableEntity<Guid>
         Status = NotificationMessageStatus.Skipped;
         SkippedAtUtc = DateTime.UtcNow;
         SkipReason = NormalizeRequired(reason, "Skip reason cannot be empty.");
+        UpdatedAtUtc = DateTime.UtcNow;
+        ConcurrencyVersion++;
     }
 
     private void EnsureCanStartDeliveryAttempt()
     {
+        if (Status == NotificationMessageStatus.Processing)
+        {
+            throw new DomainException("Notification is already being processed.");
+        }
+
         if (Status is NotificationMessageStatus.Sent or NotificationMessageStatus.Cancelled or NotificationMessageStatus.Skipped)
         {
             throw new DomainException("Delivery attempt cannot be started for a completed notification.");
@@ -152,6 +171,11 @@ public class NotificationMessage : AuditableEntity<Guid>
     private void SetRecipient(string recipient)
     {
         Recipient = NormalizeRequired(recipient, "Recipient cannot be empty.");
+    }
+
+    private void SetRecipientId(string recipientId)
+    {
+        RecipientId = NormalizeRequired(recipientId, "Recipient id cannot be empty.");
     }
 
     private void SetContent(string subject, string body)

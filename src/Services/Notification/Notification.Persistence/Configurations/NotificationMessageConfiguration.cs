@@ -19,6 +19,10 @@ public class NotificationMessageConfiguration : IEntityTypeConfiguration<Notific
             .IsRequired()
             .HasMaxLength(100);
 
+        builder.Property(x => x.RecipientId)
+            .IsRequired()
+            .HasMaxLength(100);
+
         builder.Property(x => x.Recipient)
             .IsRequired()
             .HasMaxLength(320);
@@ -32,6 +36,11 @@ public class NotificationMessageConfiguration : IEntityTypeConfiguration<Notific
 
         builder.Property(x => x.Status)
             .IsRequired();
+
+        builder.Property(x => x.ConcurrencyVersion)
+            .IsRequired()
+            .HasDefaultValue(0)
+            .IsConcurrencyToken();
 
         builder.Property(x => x.CorrelationId)
             .HasMaxLength(100);
@@ -72,7 +81,7 @@ public class NotificationMessageConfiguration : IEntityTypeConfiguration<Notific
         builder.HasIndex(x => x.Status);
         builder.HasIndex(x => x.SourceEventId);
         builder.HasIndex(x => x.CorrelationId);
-        builder.HasIndex(x => new { x.SourceEventId, x.NotificationType, x.Recipient })
+        builder.HasIndex(x => new { x.SourceEventId, x.NotificationType, x.RecipientId })
             .IsUnique()
             .HasFilter("\"SourceEventId\" IS NOT NULL");
 

@@ -4,6 +4,7 @@ namespace Notification.Application.Features.Notifications.CreateNotification;
 
 public sealed record CreateNotificationCommand(
     string NotificationType,
+    string RecipientId,
     string Recipient,
     string Subject,
     string Body,
