@@ -122,15 +122,22 @@ public class CreateCheckoutHandlerTests
                 null));
 
         var inventoryClient = Substitute.For<IInventoryReservationClient>();
-        inventoryClient.ReserveAsync(productId, "SKU-1", Arg.Any<Guid>(), 2, Arg.Any<DateTime?>(), CancellationToken.None)
-            .Returns(callInfo => new InventoryReservationResultDto(
-                Guid.NewGuid(),
-                productId,
-                "SKU-1",
-                callInfo.ArgAt<Guid>(2),
-                2,
-                "Pending",
-                callInfo.ArgAt<DateTime?>(4)));
+        inventoryClient.ReserveOrderStockAsync(
+                Arg.Any<Guid>(),
+                Arg.Any<IReadOnlyCollection<InventoryReservationItemDto>>(),
+                Arg.Any<DateTime?>(),
+                CancellationToken.None)
+            .Returns(callInfo =>
+            [
+                new InventoryReservationResultDto(
+                    Guid.NewGuid(),
+                    productId,
+                    "SKU-1",
+                    callInfo.ArgAt<Guid>(0),
+                    2,
+                    "Pending",
+                    callInfo.ArgAt<DateTime?>(2))
+            ]);
 
         var paymentClient = Substitute.For<IPaymentClient>();
         paymentClient.CreatePaymentAsync(Arg.Any<Guid>(), 300m, "TRY", "idem-new", "Fake", "Card", CancellationToken.None)
@@ -157,6 +164,14 @@ public class CreateCheckoutHandlerTests
         result.OrderStatus.Should().Be(Order.Domain.Enums.OrderStatus.WaitingForPayment);
         context.Orders.Should().ContainSingle(x => x.Id == result.OrderId);
         await inventoryClient.Received(1)
-            .ReserveAsync(productId, "SKU-1", result.OrderId, 2, Arg.Any<DateTime?>(), CancellationToken.None);
+            .ReserveOrderStockAsync(
+                result.OrderId,
+                Arg.Is<IReadOnlyCollection<InventoryReservationItemDto>>(items =>
+                    items.Count == 1 &&
+                    items.Single().ProductId == productId &&
+                    items.Single().Sku == "SKU-1" &&
+                    items.Single().Quantity == 2),
+                Arg.Any<DateTime?>(),
+                CancellationToken.None);
     }
 }

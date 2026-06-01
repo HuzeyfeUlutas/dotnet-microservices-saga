@@ -11,6 +11,7 @@ using Order.Infrastructure.Services;
 using Order.Infrastructure.Observability;
 using Order.Persistence.Context;
 using Marketplace.Grpc.Catalog.V1;
+using Marketplace.Grpc.Inventory.V1;
 
 namespace Order.Infrastructure;
 
@@ -29,6 +30,10 @@ public static class DependencyInjection
         });
         services.AddScoped<ICatalogPurchaseInfoClient, CatalogPurchaseInfoGrpcClient>();
 
+        services.AddGrpcClient<InventoryReservation.InventoryReservationClient>(client =>
+        {
+            client.Address = new Uri(serviceEndpointOptions.InventoryGrpcUrl);
+        });
         services.AddHttpClient<IInventoryReservationClient, InventoryReservationClient>((provider, client) =>
         {
             client.BaseAddress = new Uri(serviceEndpointOptions.InventoryBaseUrl);
@@ -96,6 +101,10 @@ public static class DependencyInjection
             CatalogGrpcUrl = section["CatalogGrpcUrl"] ?? "http://localhost:5272",
             CatalogGrpcTimeoutSeconds = int.TryParse(section["CatalogGrpcTimeoutSeconds"], out var timeoutSeconds)
                 ? timeoutSeconds
+                : 3,
+            InventoryGrpcUrl = section["InventoryGrpcUrl"] ?? "http://localhost:5273",
+            InventoryGrpcTimeoutSeconds = int.TryParse(section["InventoryGrpcTimeoutSeconds"], out var inventoryTimeoutSeconds)
+                ? inventoryTimeoutSeconds
                 : 3,
             InventoryBaseUrl = section["InventoryBaseUrl"] ?? "http://localhost:5273",
             PaymentBaseUrl = section["PaymentBaseUrl"] ?? "http://localhost:5285"

@@ -76,23 +76,19 @@ public class CreateCheckoutHandler(
         var order = new Order.Domain.Entities.Order(request.BuyerId, request.IdempotencyKey, lineSnapshots);
         var reservationExpiresAtUtc = DateTime.UtcNow.Add(ReservationTtl);
 
-        var reservedItems = new List<CreateCheckoutItem>();
+        IReadOnlyCollection<CreateCheckoutItem> reservedItems = [];
         var orderPersisted = false;
 
         try
         {
-            foreach (var item in request.Items)
-            {
-                await inventoryReservationClient.ReserveAsync(
-                    item.ProductId,
-                    item.Sku,
-                    order.Id,
-                    item.Quantity,
-                    reservationExpiresAtUtc,
-                    cancellationToken);
-
-                reservedItems.Add(item);
-            }
+            await inventoryReservationClient.ReserveOrderStockAsync(
+                order.Id,
+                request.Items
+                    .Select(item => new InventoryReservationItemDto(item.ProductId, item.Sku, item.Quantity))
+                    .ToList(),
+                reservationExpiresAtUtc,
+                cancellationToken);
+            reservedItems = request.Items;
 
             context.Orders.Add(order);
             await SaveChangesAsync(cancellationToken);

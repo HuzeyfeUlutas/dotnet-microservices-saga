@@ -2,11 +2,9 @@ namespace Order.Application.Abstractions.Services;
 
 public interface IInventoryReservationClient
 {
-    Task<InventoryReservationResultDto> ReserveAsync(
-        Guid productId,
-        string sku,
+    Task<IReadOnlyCollection<InventoryReservationResultDto>> ReserveOrderStockAsync(
         Guid orderId,
-        int quantity,
+        IReadOnlyCollection<InventoryReservationItemDto> items,
         DateTime? expiresAtUtc,
         CancellationToken cancellationToken = default);
 

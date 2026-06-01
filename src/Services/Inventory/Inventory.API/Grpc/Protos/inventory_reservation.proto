@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+option csharp_namespace = "Marketplace.Grpc.Inventory.V1";
+
+package marketplace.inventory.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service InventoryReservation {
+  rpc ReserveOrderStock (ReserveOrderStockRequest) returns (ReserveOrderStockResponse);
+}
+
+message ReserveOrderStockRequest {
+  string order_id = 1;
+  repeated ReserveOrderStockItem items = 2;
+  google.protobuf.Timestamp expires_at_utc = 3;
+}
+
+message ReserveOrderStockItem {
+  string product_id = 1;
+  string sku = 2;
+  int32 quantity = 3;
+}
+
+message ReserveOrderStockResponse {
+  repeated ReservedOrderStockItem items = 1;
+}
+
+message ReservedOrderStockItem {
+  string reservation_id = 1;
+  string product_id = 2;
+  string sku = 3;
+  string order_id = 4;
+  int32 quantity = 5;
+  string status = 6;
+  google.protobuf.Timestamp expires_at_utc = 7;
+}

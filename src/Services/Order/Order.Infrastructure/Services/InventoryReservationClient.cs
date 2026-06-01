@@ -1,53 +1,66 @@
 using System.Net;
 using System.Net.Http.Json;
+using Google.Protobuf.WellKnownTypes;
+using Grpc.Core;
+using Marketplace.Grpc.Inventory.V1;
 using Order.Application.Abstractions.Services;
 using Order.Application.Common.Exceptions;
+using Order.Infrastructure.Configuration;
 
 namespace Order.Infrastructure.Services;
 
-internal sealed class InventoryReservationClient(HttpClient httpClient) : IInventoryReservationClient
+internal sealed class InventoryReservationClient(
+    HttpClient httpClient,
+    InventoryReservation.InventoryReservationClient grpcClient,
+    ServiceEndpointOptions options) : IInventoryReservationClient
 {
-    public async Task<InventoryReservationResultDto> ReserveAsync(
-        Guid productId,
-        string sku,
+    public async Task<IReadOnlyCollection<InventoryReservationResultDto>> ReserveOrderStockAsync(
         Guid orderId,
-        int quantity,
+        IReadOnlyCollection<InventoryReservationItemDto> items,
         DateTime? expiresAtUtc,
         CancellationToken cancellationToken = default)
     {
-        var response = await httpClient.PostAsJsonAsync(
-            "/api/reservations",
-            new ReserveRequest(productId, sku, orderId, quantity, expiresAtUtc),
-            cancellationToken);
-
-        if (response.StatusCode == HttpStatusCode.NotFound)
+        var request = new ReserveOrderStockRequest
         {
-            throw new NotFoundException($"Inventory item for product '{productId}' and SKU '{sku}' was not found.");
+            OrderId = orderId.ToString()
+        };
+
+        if (expiresAtUtc.HasValue)
+        {
+            request.ExpiresAtUtc = Timestamp.FromDateTime(expiresAtUtc.Value.ToUniversalTime());
         }
 
-        if (response.StatusCode == HttpStatusCode.Conflict)
+        request.Items.AddRange(items.Select(item => new ReserveOrderStockItem
         {
-            var conflictText = await response.Content.ReadAsStringAsync(cancellationToken);
-            throw new ConflictException($"Inventory reservation failed. {conflictText}");
-        }
+            ProductId = item.ProductId.ToString(),
+            Sku = item.Sku,
+            Quantity = item.Quantity
+        }));
 
-        if (!response.IsSuccessStatusCode)
+        try
         {
-            var responseText = await response.Content.ReadAsStringAsync(cancellationToken);
-            throw new IntegrationException($"Inventory reserve request failed with status {(int)response.StatusCode}. {responseText}");
+            var response = await grpcClient.ReserveOrderStockAsync(
+                request,
+                deadline: DateTime.UtcNow.AddSeconds(options.InventoryGrpcTimeoutSeconds),
+                cancellationToken: cancellationToken);
+
+            return response.Items
+                .Select(MapReservation)
+                .ToList();
         }
-
-        var payload = await response.Content.ReadFromJsonAsync<ReserveResponse>(cancellationToken: cancellationToken)
-                      ?? throw new IntegrationException("Inventory reserve response was empty.");
-
-        return new InventoryReservationResultDto(
-            payload.ReservationId,
-            payload.ProductId,
-            payload.Sku,
-            payload.OrderId,
-            payload.Quantity,
-            payload.Status.ToString(),
-            payload.ExpiresAtUtc);
+        catch (RpcException exception) when (exception.StatusCode == StatusCode.NotFound)
+        {
+            throw new NotFoundException($"Inventory reservation failed. {exception.Status.Detail}");
+        }
+        catch (RpcException exception) when (
+            exception.StatusCode is StatusCode.InvalidArgument or StatusCode.FailedPrecondition or StatusCode.Aborted)
+        {
+            throw new ConflictException($"Inventory reservation failed. {exception.Status.Detail}");
+        }
+        catch (RpcException exception)
+        {
+            throw new IntegrationException($"Inventory reservation gRPC request failed with status '{exception.StatusCode}'. {exception.Status.Detail}");
+        }
     }
 
     public async Task CommitAsync(
@@ -108,24 +121,27 @@ internal sealed class InventoryReservationClient(HttpClient httpClient) : IInven
         }
     }
 
-    private sealed record ReserveRequest(
-        Guid ProductId,
-        string Sku,
-        Guid OrderId,
-        int Quantity,
-        DateTime? ExpiresAtUtc);
-
     private sealed record ReservationCommandRequest(
         Guid ProductId,
         string Sku,
         Guid OrderId);
 
-    private sealed record ReserveResponse(
-        Guid ReservationId,
-        Guid ProductId,
-        string Sku,
-        Guid OrderId,
-        int Quantity,
-        int Status,
-        DateTime? ExpiresAtUtc);
+    private static InventoryReservationResultDto MapReservation(ReservedOrderStockItem reservation)
+    {
+        if (!Guid.TryParse(reservation.ReservationId, out var reservationId) ||
+            !Guid.TryParse(reservation.ProductId, out var productId) ||
+            !Guid.TryParse(reservation.OrderId, out var orderId))
+        {
+            throw new IntegrationException("Inventory reservation gRPC response contained invalid data.");
+        }
+
+        return new InventoryReservationResultDto(
+            reservationId,
+            productId,
+            reservation.Sku,
+            orderId,
+            reservation.Quantity,
+            reservation.Status,
+            reservation.ExpiresAtUtc?.ToDateTime());
+    }
 }

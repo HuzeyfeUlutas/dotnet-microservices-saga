@@ -1,6 +1,7 @@
 using Inventory.API.ExceptionHandlers;
 using Inventory.API.Middlewares;
 using Inventory.API.Observability;
+using Inventory.API.Grpc.Services;
 using Inventory.Application;
 using Inventory.Application.Abstractions.Observability;
 using Inventory.Infrastructure;
@@ -8,8 +9,6 @@ using Inventory.Infrastructure.Observability;
 using Inventory.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Serilog;
-
-// TODO: Burası için gerekli yerlerde grpc düşünülecek.
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,6 +20,7 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
 builder.Services.AddControllers();
+builder.Services.AddGrpc();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -63,5 +63,6 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 });
 
 app.MapControllers();
+app.MapGrpcService<InventoryReservationGrpcService>();
 
 app.Run();
