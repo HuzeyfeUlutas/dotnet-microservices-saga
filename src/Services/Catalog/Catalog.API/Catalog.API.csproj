@@ -7,6 +7,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Grpc.AspNetCore" Version="2.80.0" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.6"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.4">
           <PrivateAssets>all</PrivateAssets>
@@ -19,6 +20,10 @@
       <ProjectReference Include="..\Catalog.Application\Catalog.Application.csproj" />
       <ProjectReference Include="..\Catalog.Infrastructure\Catalog.Infrastructure.csproj" />
       <ProjectReference Include="..\Catalog.Persistence\Catalog.Persistence.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Protobuf Include="Grpc\Protos\catalog_purchase_info.proto" GrpcServices="Server" />
     </ItemGroup>
 
 </Project>

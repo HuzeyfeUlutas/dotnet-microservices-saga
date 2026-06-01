@@ -5,6 +5,7 @@ using Catalog.Application;
 using Catalog.Application.Abstractions.Observability;
 using Catalog.Infrastructure;
 using Catalog.Infrastructure.Observability;
+using Catalog.API.Grpc.Services;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using OpenTelemetry.Exporter;
 using Catalog.Persistence;
@@ -21,6 +22,7 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
 builder.Services.AddControllers();
+builder.Services.AddGrpc();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -65,5 +67,6 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 });
 
 app.MapControllers();
+app.MapGrpcService<CatalogPurchaseInfoGrpcService>();
 
 app.Run();

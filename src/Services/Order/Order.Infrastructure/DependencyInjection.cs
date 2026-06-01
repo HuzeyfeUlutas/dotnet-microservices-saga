@@ -10,6 +10,7 @@ using Order.Infrastructure.Messaging.Consumers;
 using Order.Infrastructure.Services;
 using Order.Infrastructure.Observability;
 using Order.Persistence.Context;
+using Marketplace.Grpc.Catalog.V1;
 
 namespace Order.Infrastructure;
 
@@ -19,22 +20,23 @@ public static class DependencyInjection
     {
         services.AddScoped<IIntegrationEventPublisher, MassTransitIntegrationEventPublisher>();
 
-        services.AddHttpClient<ICatalogPurchaseInfoClient, CatalogPurchaseInfoClient>((provider, client) =>
+        var serviceEndpointOptions = BuildServiceEndpointOptions(configuration);
+        services.AddSingleton(serviceEndpointOptions);
+
+        services.AddGrpcClient<CatalogPurchaseInfo.CatalogPurchaseInfoClient>(client =>
         {
-            var options = BuildServiceEndpointOptions(configuration);
-            client.BaseAddress = new Uri(options.CatalogBaseUrl);
-        }).AddHttpMessageHandler(provider => new CorrelationPropagationHandler(provider.GetRequiredService<ICorrelationContextAccessor>()));
+            client.Address = new Uri(serviceEndpointOptions.CatalogGrpcUrl);
+        });
+        services.AddScoped<ICatalogPurchaseInfoClient, CatalogPurchaseInfoGrpcClient>();
 
         services.AddHttpClient<IInventoryReservationClient, InventoryReservationClient>((provider, client) =>
         {
-            var options = BuildServiceEndpointOptions(configuration);
-            client.BaseAddress = new Uri(options.InventoryBaseUrl);
+            client.BaseAddress = new Uri(serviceEndpointOptions.InventoryBaseUrl);
         }).AddHttpMessageHandler(provider => new CorrelationPropagationHandler(provider.GetRequiredService<ICorrelationContextAccessor>()));
 
         services.AddHttpClient<IPaymentClient, PaymentClient>((provider, client) =>
         {
-            var options = BuildServiceEndpointOptions(configuration);
-            client.BaseAddress = new Uri(options.PaymentBaseUrl);
+            client.BaseAddress = new Uri(serviceEndpointOptions.PaymentBaseUrl);
         }).AddHttpMessageHandler(provider => new CorrelationPropagationHandler(provider.GetRequiredService<ICorrelationContextAccessor>()));
 
         services.AddMassTransit(x =>
@@ -91,7 +93,10 @@ public static class DependencyInjection
 
         return new ServiceEndpointOptions
         {
-            CatalogBaseUrl = section["CatalogBaseUrl"] ?? "http://localhost:5272",
+            CatalogGrpcUrl = section["CatalogGrpcUrl"] ?? "http://localhost:5272",
+            CatalogGrpcTimeoutSeconds = int.TryParse(section["CatalogGrpcTimeoutSeconds"], out var timeoutSeconds)
+                ? timeoutSeconds
+                : 3,
             InventoryBaseUrl = section["InventoryBaseUrl"] ?? "http://localhost:5273",
             PaymentBaseUrl = section["PaymentBaseUrl"] ?? "http://localhost:5285"
         };

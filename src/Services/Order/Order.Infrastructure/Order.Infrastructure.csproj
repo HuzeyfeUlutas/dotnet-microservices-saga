@@ -9,6 +9,12 @@
     <ItemGroup>
         <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
         <PackageReference Include="AspNetCore.HealthChecks.RabbitMQ" Version="9.0.0" />
+        <PackageReference Include="Google.Protobuf" Version="3.34.0" />
+        <PackageReference Include="Grpc.Net.ClientFactory" Version="2.80.0" />
+        <PackageReference Include="Grpc.Tools" Version="2.80.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
         <PackageReference Include="MassTransit.EntityFrameworkCore" Version="8.4.1" />
         <PackageReference Include="MassTransit.RabbitMQ" Version="8.4.1" />
         <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
@@ -28,6 +34,10 @@
         <ProjectReference Include="..\Order.Application\Order.Application.csproj" />
         <ProjectReference Include="..\Order.Persistence\Order.Persistence.csproj" />
         <ProjectReference Include="..\..\Payment\Payment.Application\Payment.Application.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Protobuf Include="Grpc\Protos\catalog_purchase_info.proto" GrpcServices="Client" />
     </ItemGroup>
 
 </Project>

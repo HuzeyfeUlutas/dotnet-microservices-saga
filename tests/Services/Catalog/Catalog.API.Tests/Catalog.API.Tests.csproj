@@ -10,9 +10,6 @@
 
     <ItemGroup>
         <PackageReference Include="FluentAssertions" Version="6.12.2" />
-        <PackageReference Include="Grpc.Core.Api" Version="2.80.0" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.4" />
-        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
         <PackageReference Include="NSubstitute" Version="5.1.0" />
         <PackageReference Include="xunit" Version="2.8.1" />
@@ -23,9 +20,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\..\..\src\Services\Order\Order.Infrastructure\Order.Infrastructure.csproj" />
-        <ProjectReference Include="..\..\..\..\src\Services\Order\Order.Persistence\Order.Persistence.csproj" />
-        <ProjectReference Include="..\..\..\..\src\Services\Order\Order.Application\Order.Application.csproj" />
+        <ProjectReference Include="..\..\..\..\src\Services\Catalog\Catalog.API\Catalog.API.csproj" />
+        <ProjectReference Include="..\..\..\..\src\Services\Catalog\Catalog.Application\Catalog.Application.csproj" />
     </ItemGroup>
 
 </Project>
