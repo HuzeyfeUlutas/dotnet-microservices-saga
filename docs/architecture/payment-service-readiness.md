@@ -158,6 +158,36 @@ Consumer behavior:
 
 This keeps the Payment service aligned with the repository messaging standard and allows Order saga continuation without direct HTTP coupling.
 
+## Approved Compensation Additions
+
+Checkout state machine migration requires Payment to add:
+
+```text
+VoidPaymentAuthorizationRequested
+PaymentAuthorizationVoided
+PaymentAuthorizationVoidFailed
+CancelPendingPaymentRequested
+PaymentCancelled
+PaymentCancellationFailed
+```
+
+Authorization void and refund are intentionally separate:
+
+```text
+void authorization -> cancel a hold before capture
+refund -> return money after capture
+```
+
+The provider abstraction must expose a void-authorization operation. Pending payment cancellation must reuse Payment-owned Domain rules through Application handlers.
+
+Payment initiation will move from the internal HTTP create endpoint to a Payment-owned gRPC method:
+
+```text
+CreatePayment(OrderId, Amount, Currency, IdempotencyKey, Provider, Method)
+```
+
+Frontend-facing fake 3DS and provider callback or webhook HTTP endpoints remain HTTP.
+
 ## Outbound Messaging Boundary
 
 Payment currently publishes these result events through the transactional outbox:

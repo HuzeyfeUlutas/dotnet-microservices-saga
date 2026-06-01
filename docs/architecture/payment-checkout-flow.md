@@ -15,6 +15,17 @@ The platform will use a hybrid checkout flow:
 
 This keeps the user experience close to a normal ecommerce checkout while still using saga orchestration for the distributed transaction after the external payment step.
 
+Internal protocol rules follow:
+
+```text
+Order -> Catalog purchase snapshot: direct gRPC
+Order -> Inventory atomic batch reservation: direct gRPC
+Order -> Payment initiation: direct gRPC
+Saga continuation and compensation: MassTransit over RabbitMQ
+```
+
+Do not route internal gRPC calls through an API Gateway.
+
 ## User-Facing Flow
 
 ```text
@@ -27,7 +38,7 @@ This keeps the user experience close to a normal ecommerce checkout while still 
 7. Provider callback/webhook reaches Payment Service
 8. Payment Service publishes a payment result event
 9. Order Saga continues from the payment result
-10. Stock is committed or released, payment is captured/refunded, and order is confirmed/failed
+10. Stock and payment operations are completed or compensated, and the order is confirmed/failed
 ```
 
 ## Synchronous Request Scope
@@ -59,10 +70,10 @@ Those follow-up tasks should happen asynchronously after payment result events.
 
 Order/checkout should not copy Catalog tables or read Catalog's database directly.
 
-Catalog exposes the product data needed by Order through:
+Catalog exposes the product data needed by Order through an internal gRPC method:
 
 ```text
-GET /api/products/{productId}/purchase-info?sku={sku}
+GetPurchaseInfo(ProductId, Sku)
 ```
 
 Order should use this read contract before creating an order line snapshot.
@@ -182,7 +193,52 @@ PaymentAuthorizationFailed
 -> OrderPaymentFailed
 ```
 
-Capture failure or stock commit failure must be handled explicitly with retry, compensation, or manual review states. Do not silently confirm an order unless stock and payment invariants are satisfied.
+Capture failure path:
+
+```text
+PaymentCaptureFailed
+-> ReverseCommittedStockRequested
+-> VoidPaymentAuthorizationRequested
+-> CommittedStockReversed + PaymentAuthorizationVoided
+-> OrderFailed
+```
+
+Stock commit failure path:
+
+```text
+StockCommitFailed
+-> ReleaseStockRequested
+-> VoidPaymentAuthorizationRequested
+-> StockReleased + PaymentAuthorizationVoided
+-> OrderFailed
+```
+
+Payment timeout path:
+
+```text
+PaymentTimeoutExpired
+-> CancelPendingPaymentRequested
+-> ReleaseStockRequested
+-> PaymentCancelled + StockReleased
+-> OrderPaymentFailed
+```
+
+If any compensation cannot be resolved automatically, the saga must move to `ManualReviewRequired`.
+
+Do not silently confirm an order unless stock and payment invariants are satisfied.
+
+## Payment Operation Semantics
+
+Do not treat authorization void and refund as the same operation.
+
+```text
+Authorization: place a temporary hold
+Capture: collect an authorized payment
+VoidAuthorization: cancel a hold before capture
+Refund: return money after capture
+```
+
+When capture fails, request authorization void. Do not request refund because no captured payment exists.
 
 ## Payment Service Responsibility
 
@@ -249,6 +305,17 @@ PaymentCaptured
 PaymentCaptureFailed
 PaymentRefunded
 PaymentRefundFailed
+```
+
+Required additions for checkout compensation:
+
+```text
+VoidPaymentAuthorizationRequested
+PaymentAuthorizationVoided
+PaymentAuthorizationVoidFailed
+CancelPendingPaymentRequested
+PaymentCancelled
+PaymentCancellationFailed
 ```
 
 ## Required Reliability Rules

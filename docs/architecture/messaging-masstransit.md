@@ -14,11 +14,26 @@ This repository standardizes on `MassTransit` as the application message bus and
 - Do not publish broker messages directly from controllers.
 - Do not couple the Application layer to `MassTransit`, `RabbitMQ.Client`, or broker-specific APIs.
 - Define integration event contracts in a transport-agnostic location.
-- In the current repository shape, keep integration event contracts under `{ServiceName}.Application/Contracts/IntegrationEvents/` unless a dedicated shared contracts package is introduced later.
+- Keep published and consumed contract models inside each service boundary.
+- Do not add direct project references to another service's `Application` project.
+- Do not introduce a repository-wide shared contracts assembly by default.
 - Keep message publishing behind an Application abstraction and implement that abstraction in `{ServiceName}.Infrastructure`.
 - Configure `MassTransit` in `{ServiceName}.Infrastructure`.
 - Configure `DbContext` and outbox entities in `{ServiceName}.Persistence`.
 - Use the owning service database for outbox storage. Do not create a shared messaging database.
+
+## Service-Local Contract Rule
+
+Producer and consumer services may keep separate local C# contract models for the same wire message.
+
+Those models must preserve:
+
+- a stable wire message name
+- a stable namespace or explicit MassTransit entity name
+- compatible required fields
+- backward-compatible evolution
+
+Add compatibility tests for producer and consumer schema copies. Do not assume two records with similar properties automatically represent the same MassTransit wire contract.
 
 ## Outbox Rule
 
@@ -75,6 +90,25 @@ When consumers are added later:
 - use consumer outbox where handlers both consume and publish
 
 Do not add broad retry policies without understanding idempotency and downstream effects.
+
+## State Machine Saga Guidance
+
+Use a persisted MassTransit state machine saga for a long-running workflow when:
+
+- multiple services participate
+- delayed execution or timeout matters
+- compensation branches exist
+- explicit workflow states improve diagnosis and recovery
+
+The Order checkout workflow must use:
+
+```text
+MassTransitStateMachine<OrderCheckoutSagaState>
+SagaStateMachineInstance
+Entity Framework saga repository
+```
+
+Keep business rules in the owning service's Application and Domain layers. The saga coordinates commands and result events; it must not mutate another service's data or duplicate its business rules.
 
 ## Versioning Guidance
 

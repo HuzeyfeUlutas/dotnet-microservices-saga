@@ -104,13 +104,16 @@ Rules:
 
 ### `Contracts/IntegrationEvents`
 
-Place transport-agnostic integration event contracts here when a dedicated shared contracts package does not yet exist.
+Place transport-agnostic integration event contracts here.
 
 Rules:
 
 - contracts should describe cross-service facts, not internal persistence concerns
 - do not reference `MassTransit` types in these contracts
 - keep them stable and versioned carefully once other services start consuming them
+- keep published and consumed contract models inside each service boundary
+- do not add direct project references to another service's `Application` project
+- when producer and consumer keep local copies of the same wire message, preserve wire identity and add compatibility tests
 
 ### `Common`
 

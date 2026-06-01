@@ -1,11 +1,25 @@
-# Inventory Reservation HTTP Contract
+# Inventory Reservation HTTP Contract - Deprecated
 
-This document defines the internal HTTP contract for Inventory reservation operations.
+This document records the original internal HTTP contract for Inventory reservation operations.
 
-These endpoints are intended for service-to-service usage such as `Order -> Inventory`.
-They are not frontend-facing endpoints.
+These endpoints are internal-only and must be removed after the gRPC and messaging migration is complete.
 
-## Endpoints
+New implementations must follow:
+
+```text
+docs/architecture/service-communication.md
+```
+
+Replacement boundaries:
+
+```text
+ReserveOrderStock(OrderId, Items[], ExpiresAtUtc) -> direct gRPC
+CommitStockRequested -> MassTransit command
+ReleaseStockRequested -> MassTransit command
+ReverseCommittedStockRequested -> MassTransit compensation command
+```
+
+## Deprecated Endpoints
 
 ### Reserve stock
 
@@ -93,3 +107,13 @@ Do not use only `ProductId` for checkout reservation flows.
 - Reserve must be idempotent for the same `OrderId + ProductId + Sku`
 - Commit must be idempotent for repeated requests on the same reservation flow
 - Release must be idempotent for repeated requests on the same reservation flow
+- Reverse must be idempotent for repeated requests on the same committed reservation flow
+
+## Removal Rule
+
+Remove these HTTP endpoints when:
+
+1. Order uses the batch reservation gRPC method.
+2. Inventory consumes commit, release, and reverse commands through MassTransit.
+3. Inventory publishes explicit result events for every command.
+4. gRPC and messaging integration tests pass.

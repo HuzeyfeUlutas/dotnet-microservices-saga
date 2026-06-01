@@ -27,7 +27,7 @@ Optional local development tooling:
 - Observability concerns are cross-cutting concerns, not business concerns.
 - Observability implementation must stay out of the Domain layer.
 - The Application layer must remain infrastructure-agnostic.
-- HTTP and messaging flows must use consistent correlation rules.
+- HTTP, gRPC, and messaging flows must use consistent correlation rules.
 
 ## Signal Roles
 
@@ -68,6 +68,7 @@ Use traces for:
 - end-to-end HTTP request flows
 - database spans
 - outbound HTTP spans
+- outbound and inbound gRPC spans
 - publish spans
 - consume spans
 
@@ -259,6 +260,7 @@ Every service should expose at least:
 - request error count
 - database call duration
 - outbound HTTP duration when external HTTP calls exist
+- outbound gRPC duration when internal gRPC calls exist
 - message publish count
 - message consume count when consumers exist
 
@@ -299,12 +301,13 @@ Every HTTP API service should include tracing for:
 - ASP.NET Core incoming requests
 - database access where a stable instrumentation option exists for the current repository package baseline
 - outbound HTTP calls
+- inbound and outbound gRPC calls when gRPC endpoints or clients exist
 - MassTransit publish operations
 - MassTransit consume operations when consumers exist
 
 ### Trace Propagation
 
-- Trace context must flow across HTTP boundaries.
+- Trace context must flow across HTTP and gRPC boundaries.
 - Trace context should also be preserved across messaging boundaries where supported by the transport and instrumentation stack.
 - Traces must be exported to `Tempo`.
 
@@ -327,6 +330,18 @@ When publishing a message:
 - preserve tracing context
 - rely on transport and instrumentation support where possible
 - enrich publish logs with message metadata
+
+## gRPC Observability Standard
+
+Internal gRPC calls must:
+
+- propagate `X-Correlation-Id` through gRPC metadata
+- preserve OpenTelemetry trace context
+- use explicit deadlines
+- include method name, duration, and result status in telemetry
+- avoid logging sensitive payload values
+
+gRPC server and client instrumentation belongs in each service's Infrastructure project.
 
 ### Consume Correlation Propagation
 

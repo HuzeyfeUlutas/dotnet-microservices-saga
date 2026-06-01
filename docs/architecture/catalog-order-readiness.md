@@ -24,11 +24,19 @@ Treat this as a separate dependency security task, not an Order-blocking Catalog
 
 ## Purchase Info Contract
 
-Order should fetch product snapshot data from Catalog by product id and SKU:
+The current implementation exposes product snapshot data over internal HTTP:
 
 ```text
 GET /api/products/{productId}/purchase-info?sku={sku}
 ```
+
+This HTTP endpoint is internal-only and will be removed after Order migrates to the Catalog-owned gRPC method:
+
+```text
+GetPurchaseInfo(ProductId, Sku)
+```
+
+The gRPC method must preserve the same response fields and Application query behavior.
 
 The response is intended to provide:
 

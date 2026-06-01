@@ -4,6 +4,20 @@ This document defines the initial scope and contract decisions for the `Order` s
 
 The goal of `Order` v1 is to implement a production-shaped checkout orchestration flow that stays aligned with the current repository templates and service boundaries.
 
+## Migration Note
+
+The first implementation used direct internal HTTP clients and persisted MassTransit consumers.
+
+The approved migration direction is:
+
+```text
+immediate internal checkout calls -> direct gRPC
+saga continuation and compensation -> MassTransit over RabbitMQ
+checkout coordination -> persisted MassTransit state machine saga
+```
+
+Follow `docs/architecture/service-communication.md` for the repository-wide protocol rules.
+
 ## Core Responsibility
 
 `Order` owns:
@@ -90,29 +104,39 @@ The correct initial meaning is:
 
 ### Catalog
 
-`Order` must use the existing `Catalog` purchase-info contract:
+`Order` must fetch purchase snapshot data through the Catalog-owned internal gRPC method:
 
 ```text
-GET /api/products/{productId}/purchase-info?sku={sku}
+GetPurchaseInfo(ProductId, Sku)
 ```
 
 `Order` must persist its own line snapshot and must not read `Catalog` tables directly.
 
 ### Inventory
 
-`Order` must use the existing internal reservation HTTP contract:
+`Order` must reserve all checkout stock items synchronously through the Inventory-owned internal gRPC method:
 
-- `POST /api/reservations`
-- `POST /api/reservations/commit`
-- `POST /api/reservations/release`
+```text
+ReserveOrderStock(OrderId, Items[], ExpiresAtUtc)
+```
 
-Reserve is synchronous during checkout.
+Inventory must reserve all requested items atomically in one transaction.
 
-Commit/release are asynchronous follow-up actions initiated by the `Order` saga.
+Commit, release, and committed-stock reverse are asynchronous follow-up actions initiated by the `Order` saga through messaging:
+
+```text
+CommitStockRequested
+ReleaseStockRequested
+ReverseCommittedStockRequested
+```
 
 ### Payment
 
-`Order` initiates payment synchronously and receives a provider-neutral `payment.action`.
+`Order` initiates payment synchronously through the Payment-owned internal gRPC method and receives a provider-neutral `payment.action`:
+
+```text
+CreatePayment(OrderId, Amount, Currency, IdempotencyKey, Provider, Method)
+```
 
 Payment result handling remains owned by `Payment`.
 
@@ -301,23 +325,31 @@ State guidance:
 - `PaymentFailed`: payment authorization failed and stock release path completed
 - `Failed`: unexpected orchestration or compensation failure requiring investigation
 
+The state machine migration adds:
+
+- `ManualReviewRequired`: one or more compensation steps could not be resolved automatically
+
 ## Saga Boundary
 
 The checkout saga belongs to `Order`.
 
-Implementation direction:
+Target implementation:
 
-- saga orchestration in `Order.Infrastructure`
+- persisted `MassTransitStateMachine<OrderCheckoutSagaState>` in `Order.Infrastructure`
 - saga state persistence in `Order.Persistence`
 - domain state transitions in `Order.Domain`
+- Entity Framework saga repository backed by the Order database
+- scheduled payment timeout after 15 minutes
 
 The saga coordinates the flow but does not take ownership away from `Payment` or `Inventory`.
 
 Responsibilities:
 
 - react to payment result events
-- request stock commit or stock release
-- optionally request payment capture in follow-up phases
+- request stock commit, release, or committed-stock reverse
+- request payment capture, authorization void, or pending-payment cancellation
+- wait for explicit result events from owning services
+- move unresolved compensation failures to `ManualReviewRequired`
 - update final order state
 
 ## Idempotency and Concurrency
@@ -349,12 +381,13 @@ Reason:
 Consume:
 
 - payment result events from `Payment`
-- later, inventory result events if commit/release becomes event-driven
+- inventory result events from `Inventory`
 
 Publish:
 
-- stock follow-up commands such as commit/release requests through messaging
-- order result events in later phases when downstream consumers are introduced
+- stock follow-up commands such as commit, release, and reverse requests
+- payment follow-up commands such as capture, authorization void, and pending cancellation requests
+- final order result events for downstream consumers
 
 Why this decision:
 
@@ -364,7 +397,7 @@ Why this decision:
 
 ## Reservation TTL
 
-`Order` v1 will send a short-lived reservation expiration time to `Inventory`.
+`Order` sends a short-lived reservation expiration time to `Inventory` and schedules a matching saga timeout.
 
 Default direction:
 
@@ -388,5 +421,4 @@ These are intentionally postponed until after checkout v1 is working:
 - order history/list endpoints
 - taxes, fees, coupons
 - address modeling
-- manual review states
-- payment capture/refund compensation beyond the first required flow
+- customer-initiated refund orchestration beyond checkout compensation
