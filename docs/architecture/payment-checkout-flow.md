@@ -228,7 +228,7 @@ PaymentTimeoutExpired
 
 If any compensation cannot be resolved automatically, the saga must move to `ManualReviewRequired`.
 
-The consumer-based runtime currently applies these continuation steps sequentially. Scheduled creation of `PaymentTimeoutExpired` remains part of the persisted MassTransit state machine migration.
+The persisted MassTransit state machine endpoint owns the successful checkout path. The consumer-based bridge currently applies failure and compensation continuation steps sequentially. Scheduled creation of `PaymentTimeoutExpired` remains part of the state machine migration.
 
 Do not silently confirm an order unless stock and payment invariants are satisfied.
 

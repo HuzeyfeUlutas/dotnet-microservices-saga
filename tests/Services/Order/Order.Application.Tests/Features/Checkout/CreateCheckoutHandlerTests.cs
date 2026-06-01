@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Order.Application.Abstractions.Messaging;
+using Order.Application.Contracts.IntegrationEvents;
 using Order.Application.Abstractions.Services;
 using Order.Application.Common.Exceptions;
 using Order.Application.Features.Checkout.CreateCheckout;
@@ -30,11 +31,13 @@ public class CreateCheckoutHandlerTests
         var catalogClient = Substitute.For<ICatalogPurchaseInfoClient>();
         var inventoryClient = Substitute.For<IInventoryReservationClient>();
         var paymentClient = Substitute.For<IPaymentClient>();
+        var integrationEventPublisher = Substitute.For<IIntegrationEventPublisher>();
         var handler = new CreateCheckoutHandler(
             context,
             catalogClient,
             inventoryClient,
             paymentClient,
+            integrationEventPublisher,
             Substitute.For<IStockReservationRollbackPublisher>(),
             NullLogger<CreateCheckoutHandler>.Instance);
 
@@ -66,6 +69,7 @@ public class CreateCheckoutHandlerTests
         var catalogClient = Substitute.For<ICatalogPurchaseInfoClient>();
         var inventoryClient = Substitute.For<IInventoryReservationClient>();
         var paymentClient = Substitute.For<IPaymentClient>();
+        var integrationEventPublisher = Substitute.For<IIntegrationEventPublisher>();
         paymentClient.CreatePaymentAsync(
                 existingOrder.Id,
                 existingOrder.TotalAmount,
@@ -85,6 +89,7 @@ public class CreateCheckoutHandlerTests
             catalogClient,
             inventoryClient,
             paymentClient,
+            integrationEventPublisher,
             Substitute.For<IStockReservationRollbackPublisher>(),
             NullLogger<CreateCheckoutHandler>.Instance);
 
@@ -99,6 +104,12 @@ public class CreateCheckoutHandlerTests
         result.Payment.PaymentId.Should().Be(Guid.Parse("22222222-2222-2222-2222-222222222222"));
         result.Payment.Action.Type.Should().Be("Redirect");
         existingOrder.PaymentId.Should().Be(Guid.Parse("22222222-2222-2222-2222-222222222222"));
+        await integrationEventPublisher.Received(1)
+            .PublishAsync(
+                Arg.Is<OrderCheckoutStarted>(message =>
+                    message.OrderId == existingOrder.Id &&
+                    message.PaymentId == result.Payment.PaymentId),
+                CancellationToken.None);
     }
 
     [Fact]
@@ -143,6 +154,7 @@ public class CreateCheckoutHandlerTests
             ]);
 
         var paymentClient = Substitute.For<IPaymentClient>();
+        var integrationEventPublisher = Substitute.For<IIntegrationEventPublisher>();
         paymentClient.CreatePaymentAsync(Arg.Any<Guid>(), 300m, "TRY", "idem-new", "Fake", "Card", CancellationToken.None)
             .Returns(new PaymentInitiationResultDto(
                 Guid.NewGuid(),
@@ -155,6 +167,7 @@ public class CreateCheckoutHandlerTests
             catalogClient,
             inventoryClient,
             paymentClient,
+            integrationEventPublisher,
             Substitute.For<IStockReservationRollbackPublisher>(),
             NullLogger<CreateCheckoutHandler>.Instance);
 
@@ -176,6 +189,12 @@ public class CreateCheckoutHandlerTests
                     items.Single().Sku == "SKU-1" &&
                     items.Single().Quantity == 2),
                 Arg.Any<DateTime?>(),
+                CancellationToken.None);
+        await integrationEventPublisher.Received(1)
+            .PublishAsync(
+                Arg.Is<OrderCheckoutStarted>(message =>
+                    message.OrderId == result.OrderId &&
+                    message.PaymentId == result.Payment.PaymentId),
                 CancellationToken.None);
     }
 }

@@ -28,27 +28,16 @@ public class PaymentCaptureFailedConsumerTests
         await context.SaveChangesAsync();
         var publishEndpoint = Substitute.For<IPublishEndpoint>();
         var paymentId = Guid.NewGuid();
-
-        var paymentAuthorizedConsumer = new PaymentAuthorizedConsumer(
-            context,
-            publishEndpoint,
-            NullLogger<PaymentAuthorizedConsumer>.Instance);
-        var paymentAuthorizedContext = Substitute.For<ConsumeContext<PaymentAuthorized>>();
-        paymentAuthorizedContext.Message.Returns(
-            new PaymentAuthorized(Guid.NewGuid(), paymentId, order.Id, order.TotalAmount, order.Currency, DateTime.UtcNow));
-        paymentAuthorizedContext.CancellationToken.Returns(CancellationToken.None);
-        await paymentAuthorizedConsumer.Consume(paymentAuthorizedContext);
-
-        var stockCommittedConsumer = new StockCommittedConsumer(
-            context,
-            publishEndpoint,
-            NullLogger<StockCommittedConsumer>.Instance);
-        var stockCommittedContext = Substitute.For<ConsumeContext<StockCommitted>>();
-        stockCommittedContext.Message.Returns(
-            new StockCommitted(Guid.NewGuid(), Guid.NewGuid(), order.Id, DateTime.UtcNow));
-        stockCommittedContext.CancellationToken.Returns(CancellationToken.None);
-        await stockCommittedConsumer.Consume(stockCommittedContext);
-        publishEndpoint.ClearReceivedCalls();
+        context.OrderCheckoutSagaStates.Add(new OrderCheckoutSagaState
+        {
+            CorrelationId = order.Id,
+            OrderId = order.Id,
+            PaymentId = paymentId,
+            CurrentState = OrderCheckoutSagaStatus.CaptureRequested,
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow
+        });
+        await context.SaveChangesAsync();
 
         var consumer = new PaymentCaptureFailedConsumer(
             context,

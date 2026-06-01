@@ -153,7 +153,7 @@ PaymentCaptureFailed
 
 Do not issue a refund when no payment was captured.
 
-The current consumer-based bridge executes compensation steps sequentially. The persisted MassTransit state machine type and result-event correlations are defined, but its endpoint remains inactive until the behaviors can replace the bridge without duplicate orchestration. The completed migration will own the same transitions and schedule payment timeout handling.
+The persisted MassTransit state machine endpoint owns the successful checkout path. The consumer-based bridge still executes failure and compensation steps sequentially until those behaviors can move into the state machine without duplicate orchestration. The completed migration will schedule payment timeout handling.
 
 ## Contract Ownership
 

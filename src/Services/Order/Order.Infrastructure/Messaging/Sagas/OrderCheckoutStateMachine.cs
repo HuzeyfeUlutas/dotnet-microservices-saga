@@ -1,7 +1,10 @@
 using Marketplace.Contracts.Inventory.V1;
 using Marketplace.Contracts.Payment.V1;
 using MassTransit;
+using Order.Application.Contracts.IntegrationEvents;
+using Order.Infrastructure.Messaging.Sagas.Activities;
 using Order.Persistence.Sagas;
+using System.Linq.Expressions;
 
 namespace Order.Infrastructure.Messaging.Sagas;
 
@@ -26,20 +29,68 @@ public sealed class OrderCheckoutStateMachine : MassTransitStateMachine<OrderChe
         State(() => Failed);
         State(() => ManualReviewRequired);
 
-        ConfigureOrderCorrelation(() => PaymentAuthorized);
-        ConfigureOrderCorrelation(() => PaymentAuthorizationFailed);
-        ConfigureOrderCorrelation(() => StockCommitted);
-        ConfigureOrderCorrelation(() => StockCommitFailed);
-        ConfigureOrderCorrelation(() => PaymentCaptured);
-        ConfigureOrderCorrelation(() => PaymentCaptureFailed);
-        ConfigureOrderCorrelation(() => StockReleased);
-        ConfigureOrderCorrelation(() => StockReleaseFailed);
-        ConfigureOrderCorrelation(() => CommittedStockReversed);
-        ConfigureOrderCorrelation(() => CommittedStockReverseFailed);
-        ConfigureOrderCorrelation(() => PaymentAuthorizationVoided);
-        ConfigureOrderCorrelation(() => PaymentAuthorizationVoidFailed);
-        ConfigureOrderCorrelation(() => PaymentCancelled);
-        ConfigureOrderCorrelation(() => PaymentCancellationFailed);
+        Event(() => OrderCheckoutStarted, configuration =>
+        {
+            configuration.CorrelateBy(
+                    (sagaState, consumeContext) => sagaState.OrderId == consumeContext.Message.OrderId)
+                .SelectId(context => context.Message.OrderId);
+            configuration.InsertOnInitial = true;
+            configuration.SetSagaFactory(context => new OrderCheckoutSagaState
+            {
+                CorrelationId = context.CorrelationId ?? context.Message.OrderId,
+                OrderId = context.Message.OrderId,
+                PaymentId = context.Message.PaymentId,
+                CreatedAtUtc = context.Message.OccurredAtUtc,
+                UpdatedAtUtc = context.Message.OccurredAtUtc
+            });
+        });
+
+        ConfigureOrderCorrelation(() => PaymentAuthorized, (sagaState, consumeContext) => sagaState.OrderId == consumeContext.Message.OrderId);
+        ConfigureOrderCorrelation(() => PaymentAuthorizationFailed, (sagaState, consumeContext) => sagaState.OrderId == consumeContext.Message.OrderId);
+        ConfigureOrderCorrelation(() => StockCommitted, (sagaState, consumeContext) => sagaState.OrderId == consumeContext.Message.OrderId);
+        ConfigureOrderCorrelation(() => StockCommitFailed, (sagaState, consumeContext) => sagaState.OrderId == consumeContext.Message.OrderId);
+        ConfigureOrderCorrelation(() => PaymentCaptured, (sagaState, consumeContext) => sagaState.OrderId == consumeContext.Message.OrderId);
+        ConfigureOrderCorrelation(() => PaymentCaptureFailed, (sagaState, consumeContext) => sagaState.OrderId == consumeContext.Message.OrderId);
+        ConfigureOrderCorrelation(() => StockReleased, (sagaState, consumeContext) => sagaState.OrderId == consumeContext.Message.OrderId);
+        ConfigureOrderCorrelation(() => StockReleaseFailed, (sagaState, consumeContext) => sagaState.OrderId == consumeContext.Message.OrderId);
+        ConfigureOrderCorrelation(() => CommittedStockReversed, (sagaState, consumeContext) => sagaState.OrderId == consumeContext.Message.OrderId);
+        ConfigureOrderCorrelation(() => CommittedStockReverseFailed, (sagaState, consumeContext) => sagaState.OrderId == consumeContext.Message.OrderId);
+        ConfigureOrderCorrelation(() => PaymentAuthorizationVoided, (sagaState, consumeContext) => sagaState.OrderId == consumeContext.Message.OrderId);
+        ConfigureOrderCorrelation(() => PaymentAuthorizationVoidFailed, (sagaState, consumeContext) => sagaState.OrderId == consumeContext.Message.OrderId);
+        ConfigureOrderCorrelation(() => PaymentCancelled, (sagaState, consumeContext) => sagaState.OrderId == consumeContext.Message.OrderId);
+        ConfigureOrderCorrelation(() => PaymentCancellationFailed, (sagaState, consumeContext) => sagaState.OrderId == consumeContext.Message.OrderId);
+
+        Initially(
+            When(OrderCheckoutStarted)
+                .TransitionTo(WaitingForPayment));
+
+        During(WaitingForPayment,
+            When(PaymentAuthorized)
+                .Activity(activity => activity.OfType<RequestStockCommitActivity>())
+                .TransitionTo(StockCommitRequested));
+
+        During(StockCommitRequested,
+            When(StockCommitted)
+                .Activity(activity => activity.OfType<RequestPaymentCaptureActivity>())
+                .TransitionTo(CaptureRequested));
+
+        During(CaptureRequested,
+            When(PaymentCaptured)
+                .Activity(activity => activity.OfType<ConfirmOrderActivity>())
+                .TransitionTo(Completed));
+
+        DuringAny(
+            Ignore(PaymentAuthorizationFailed),
+            Ignore(PaymentCaptureFailed),
+            Ignore(StockCommitFailed),
+            Ignore(StockReleased),
+            Ignore(StockReleaseFailed),
+            Ignore(CommittedStockReversed),
+            Ignore(CommittedStockReverseFailed),
+            Ignore(PaymentAuthorizationVoided),
+            Ignore(PaymentAuthorizationVoidFailed),
+            Ignore(PaymentCancelled),
+            Ignore(PaymentCancellationFailed));
     }
 
     public State WaitingForPayment { get; private set; } = null!;
@@ -57,6 +108,7 @@ public sealed class OrderCheckoutStateMachine : MassTransitStateMachine<OrderChe
     public State Failed { get; private set; } = null!;
     public State ManualReviewRequired { get; private set; } = null!;
 
+    public Event<OrderCheckoutStarted> OrderCheckoutStarted { get; private set; } = null!;
     public Event<PaymentAuthorized> PaymentAuthorized { get; private set; } = null!;
     public Event<PaymentAuthorizationFailed> PaymentAuthorizationFailed { get; private set; } = null!;
     public Event<StockCommitted> StockCommitted { get; private set; } = null!;
@@ -72,37 +124,15 @@ public sealed class OrderCheckoutStateMachine : MassTransitStateMachine<OrderChe
     public Event<PaymentCancelled> PaymentCancelled { get; private set; } = null!;
     public Event<PaymentCancellationFailed> PaymentCancellationFailed { get; private set; } = null!;
 
-    private void ConfigureOrderCorrelation<TMessage>(System.Linq.Expressions.Expression<Func<Event<TMessage>>> eventProperty)
+    private void ConfigureOrderCorrelation<TMessage>(
+        Expression<Func<Event<TMessage>>> eventProperty,
+        Expression<Func<OrderCheckoutSagaState, ConsumeContext<TMessage>, bool>> correlationExpression)
         where TMessage : class
     {
         Event(eventProperty, configuration =>
         {
-            configuration.CorrelateBy(
-                (sagaState, consumeContext) => sagaState.OrderId == GetOrderId(consumeContext.Message));
+            configuration.CorrelateBy(correlationExpression);
             configuration.OnMissingInstance(missing => missing.Discard());
         });
-    }
-
-    private static Guid GetOrderId<TMessage>(TMessage message)
-        where TMessage : class
-    {
-        return message switch
-        {
-            PaymentAuthorized value => value.OrderId,
-            PaymentAuthorizationFailed value => value.OrderId,
-            StockCommitted value => value.OrderId,
-            StockCommitFailed value => value.OrderId,
-            PaymentCaptured value => value.OrderId,
-            PaymentCaptureFailed value => value.OrderId,
-            StockReleased value => value.OrderId,
-            StockReleaseFailed value => value.OrderId,
-            CommittedStockReversed value => value.OrderId,
-            CommittedStockReverseFailed value => value.OrderId,
-            PaymentAuthorizationVoided value => value.OrderId,
-            PaymentAuthorizationVoidFailed value => value.OrderId,
-            PaymentCancelled value => value.OrderId,
-            PaymentCancellationFailed value => value.OrderId,
-            _ => throw new ArgumentOutOfRangeException(nameof(message), message.GetType().FullName, "Unsupported checkout saga message type.")
-        };
     }
 }

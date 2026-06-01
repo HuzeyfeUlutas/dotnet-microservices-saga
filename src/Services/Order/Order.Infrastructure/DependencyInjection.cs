@@ -7,9 +7,12 @@ using Order.Application.Abstractions.Services;
 using Order.Infrastructure.Configuration;
 using Order.Infrastructure.Messaging;
 using Order.Infrastructure.Messaging.Consumers;
+using Order.Infrastructure.Messaging.Sagas;
+using Order.Infrastructure.Messaging.Sagas.Activities;
 using Order.Infrastructure.Services;
 using Order.Infrastructure.Observability;
 using Order.Persistence.Context;
+using Order.Persistence.Sagas;
 using Marketplace.Grpc.Catalog.V1;
 using Marketplace.Grpc.Inventory.V1;
 using Marketplace.Grpc.Payment.V1;
@@ -43,15 +46,15 @@ public static class DependencyInjection
             client.Address = new Uri(serviceEndpointOptions.PaymentGrpcUrl);
         });
         services.AddScoped<IPaymentClient, PaymentClient>();
+        services.AddScoped<RequestStockCommitActivity>();
+        services.AddScoped<RequestPaymentCaptureActivity>();
+        services.AddScoped<ConfirmOrderActivity>();
 
         services.AddMassTransit(x =>
         {
             x.SetKebabCaseEndpointNameFormatter();
-            x.AddConsumer<PaymentAuthorizedConsumer>();
             x.AddConsumer<PaymentAuthorizationFailedConsumer>();
-            x.AddConsumer<PaymentCapturedConsumer>();
             x.AddConsumer<PaymentCaptureFailedConsumer>();
-            x.AddConsumer<StockCommittedConsumer>();
             x.AddConsumer<StockCommitFailedConsumer>();
             x.AddConsumer<StockReleasedConsumer>();
             x.AddConsumer<StockReleaseFailedConsumer>();
@@ -61,6 +64,13 @@ public static class DependencyInjection
             x.AddConsumer<PaymentAuthorizationVoidFailedConsumer>();
             x.AddConsumer<PaymentCancelledConsumer>();
             x.AddConsumer<PaymentCancellationFailedConsumer>();
+            x.AddSagaStateMachine<OrderCheckoutStateMachine, OrderCheckoutSagaState>()
+                .EntityFrameworkRepository(repository =>
+                {
+                    repository.ConcurrencyMode = ConcurrencyMode.Optimistic;
+                    repository.ExistingDbContext<OrderDbContext>();
+                    repository.UsePostgres();
+                });
 
             x.AddEntityFrameworkOutbox<OrderDbContext>(o =>
             {

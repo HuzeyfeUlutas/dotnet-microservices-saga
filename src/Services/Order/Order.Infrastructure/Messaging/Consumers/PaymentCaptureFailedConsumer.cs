@@ -81,7 +81,7 @@ public sealed class PaymentCaptureFailedConsumer(
 
         sagaState = new OrderCheckoutSagaState
         {
-            CorrelationId = Guid.NewGuid(),
+            CorrelationId = orderId,
             OrderId = orderId,
             PaymentId = paymentId,
             CurrentState = OrderCheckoutSagaStatus.WaitingForPayment,

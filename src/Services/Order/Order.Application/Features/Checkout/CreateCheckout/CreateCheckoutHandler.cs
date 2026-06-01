@@ -6,6 +6,7 @@ using Order.Application.Abstractions.Messaging;
 using Order.Application.Abstractions.Persistence;
 using Order.Application.Abstractions.Services;
 using Order.Application.Common.Exceptions;
+using Order.Application.Contracts.IntegrationEvents;
 using Order.Application.DTOs;
 using Order.Domain.Entities;
 using Order.Domain.Exceptions;
@@ -18,6 +19,7 @@ public class CreateCheckoutHandler(
     ICatalogPurchaseInfoClient catalogPurchaseInfoClient,
     IInventoryReservationClient inventoryReservationClient,
     IPaymentClient paymentClient,
+    IIntegrationEventPublisher integrationEventPublisher,
     IStockReservationRollbackPublisher stockReservationRollbackPublisher,
     ILogger<CreateCheckoutHandler> logger) : IRequestHandler<CreateCheckoutCommand, CheckoutResultDto>
 {
@@ -57,6 +59,7 @@ public class CreateCheckoutHandler(
             if (!existingOrder.PaymentId.HasValue)
             {
                 existingOrder.AttachPayment(paymentResult.PaymentId);
+                await PublishCheckoutStartedAsync(existingOrder.Id, paymentResult.PaymentId, cancellationToken);
                 await SaveChangesAsync(cancellationToken);
             }
 
@@ -107,6 +110,7 @@ public class CreateCheckoutHandler(
                 cancellationToken);
 
             order.AttachPayment(paymentResult.PaymentId);
+            await PublishCheckoutStartedAsync(order.Id, paymentResult.PaymentId, cancellationToken);
             await SaveChangesAsync(cancellationToken);
 
             return new CheckoutResultDto(
@@ -286,5 +290,19 @@ public class CreateCheckoutHandler(
         {
             throw new ConflictException($"Order could not be created. {exception.Message}");
         }
+    }
+
+    private Task PublishCheckoutStartedAsync(
+        Guid orderId,
+        Guid paymentId,
+        CancellationToken cancellationToken)
+    {
+        return integrationEventPublisher.PublishAsync(
+            new OrderCheckoutStarted(
+                Guid.NewGuid(),
+                orderId,
+                paymentId,
+                DateTime.UtcNow),
+            cancellationToken);
     }
 }

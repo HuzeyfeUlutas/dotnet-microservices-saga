@@ -10,6 +10,7 @@ using Order.Domain.Enums;
 using Order.Domain.ValueObjects;
 using Order.Infrastructure.Messaging.Consumers;
 using Order.Infrastructure.Tests.Support;
+using Order.Persistence.Sagas;
 using Xunit;
 
 namespace Order.Infrastructure.Tests.Consumers;
@@ -75,16 +76,16 @@ public class StockReleasedConsumerTests
         await context.SaveChangesAsync();
         var publishEndpoint = Substitute.For<IPublishEndpoint>();
         var paymentId = Guid.NewGuid();
-
-        var paymentAuthorizedConsumer = new PaymentAuthorizedConsumer(
-            context,
-            publishEndpoint,
-            NullLogger<PaymentAuthorizedConsumer>.Instance);
-        var paymentAuthorizedContext = Substitute.For<ConsumeContext<PaymentAuthorized>>();
-        paymentAuthorizedContext.Message.Returns(
-            new PaymentAuthorized(Guid.NewGuid(), paymentId, order.Id, order.TotalAmount, order.Currency, DateTime.UtcNow));
-        paymentAuthorizedContext.CancellationToken.Returns(CancellationToken.None);
-        await paymentAuthorizedConsumer.Consume(paymentAuthorizedContext);
+        context.OrderCheckoutSagaStates.Add(new OrderCheckoutSagaState
+        {
+            CorrelationId = order.Id,
+            OrderId = order.Id,
+            PaymentId = paymentId,
+            CurrentState = OrderCheckoutSagaStatus.StockCommitRequested,
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow
+        });
+        await context.SaveChangesAsync();
 
         var stockCommitFailedConsumer = new StockCommitFailedConsumer(
             context,

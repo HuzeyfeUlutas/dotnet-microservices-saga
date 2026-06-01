@@ -345,7 +345,11 @@ Migration note:
 
 - `OrderCheckoutSagaState` implements `SagaStateMachineInstance`
 - the state machine type and existing result-event correlations are defined in `Order.Infrastructure`
-- the consumer-based bridge remains active until state-machine behaviors are migrated and the saga endpoint can replace it without duplicate orchestration
+- checkout publishes `OrderCheckoutStarted` after a payment is attached so the persisted saga begins in `WaitingForPayment`
+- new saga records use `OrderId` as `CorrelationId`; continuation events temporarily correlate through the unique `OrderId` index so records created by the previous consumer bridge remain loadable during migration
+- the state-machine endpoint is active with the Entity Framework saga repository
+- the successful path is owned by state-machine activities: `PaymentAuthorized -> CommitStockRequested -> StockCommitted -> CapturePaymentRequested -> PaymentCaptured -> OrderConfirmed`
+- failure and compensation branches remain on the consumer-based bridge until their state-machine behaviors replace them without duplicate orchestration
 
 Responsibilities:
 

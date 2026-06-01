@@ -23,16 +23,11 @@ public class StockFailureConsumerTests
         context.Orders.Add(order);
         await context.SaveChangesAsync();
         var publishEndpoint = Substitute.For<IPublishEndpoint>();
-
-        var paymentAuthorizedConsumer = new PaymentAuthorizedConsumer(
-            context,
-            publishEndpoint,
-            NullLogger<PaymentAuthorizedConsumer>.Instance);
-        var paymentAuthorizedContext = Substitute.For<ConsumeContext<PaymentAuthorized>>();
-        paymentAuthorizedContext.Message.Returns(
-            new PaymentAuthorized(Guid.NewGuid(), Guid.NewGuid(), order.Id, order.TotalAmount, order.Currency, DateTime.UtcNow));
-        paymentAuthorizedContext.CancellationToken.Returns(CancellationToken.None);
-        await paymentAuthorizedConsumer.Consume(paymentAuthorizedContext);
+        context.OrderCheckoutSagaStates.Add(CreateSagaState(
+            order.Id,
+            Guid.NewGuid(),
+            OrderCheckoutSagaStatus.StockCommitRequested));
+        await context.SaveChangesAsync();
 
         var consumer = new StockCommitFailedConsumer(
             context,
@@ -94,5 +89,18 @@ public class StockFailureConsumerTests
             Guid.NewGuid(),
             idempotencyKey,
             [new OrderLineSnapshot(Guid.NewGuid(), "SKU-1", "Product 1", "Variant 1", new Money(100m, "TRY"), 1)]);
+    }
+
+    private static OrderCheckoutSagaState CreateSagaState(Guid orderId, Guid paymentId, string currentState)
+    {
+        return new OrderCheckoutSagaState
+        {
+            CorrelationId = orderId,
+            OrderId = orderId,
+            PaymentId = paymentId,
+            CurrentState = currentState,
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow
+        };
     }
 }
