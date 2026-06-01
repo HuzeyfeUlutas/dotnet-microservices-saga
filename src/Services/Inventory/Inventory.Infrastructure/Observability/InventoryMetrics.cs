@@ -18,6 +18,8 @@ public sealed class InventoryMetrics : IInventoryMetrics
         Meter.CreateCounter<long>("inventory.stock.reserved");
     private static readonly Counter<long> ReservationCommittedCounter =
         Meter.CreateCounter<long>("inventory.reservations.committed");
+    private static readonly Counter<long> ReservationCommitReversedCounter =
+        Meter.CreateCounter<long>("inventory.reservations.commit_reversed");
     private static readonly Counter<long> ReservationReleasedCounter =
         Meter.CreateCounter<long>("inventory.reservations.released");
     private static readonly Counter<long> StockUnavailableCounter =
@@ -46,6 +48,11 @@ public sealed class InventoryMetrics : IInventoryMetrics
     public void RecordReservationCommitted()
     {
         ReservationCommittedCounter.Add(1);
+    }
+
+    public void RecordReservationCommitReversed()
+    {
+        ReservationCommitReversedCounter.Add(1);
     }
 
     public void RecordReservationReleased()

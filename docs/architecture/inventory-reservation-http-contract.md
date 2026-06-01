@@ -12,7 +12,7 @@ POST /api/reservations/commit -> removed; replaced by CommitStockRequested
 POST /api/reservations/release -> removed; replaced by ReleaseStockRequested
 ```
 
-The reverse-committed-stock compensation command remains planned. It was not exposed as an HTTP endpoint.
+The reverse-committed-stock compensation command is implemented through MassTransit. It was not exposed as an HTTP endpoint.
 
 New implementations must follow:
 
@@ -128,4 +128,4 @@ The runtime HTTP endpoints were removed after:
 3. Inventory publishes explicit commit and release result events.
 4. gRPC and messaging integration tests pass.
 
-`ReverseCommittedStockRequested` remains a separate messaging-only compensation addition.
+`ReverseCommittedStockRequested` was added as a separate messaging-only compensation flow.

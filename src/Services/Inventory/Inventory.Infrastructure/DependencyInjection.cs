@@ -25,6 +25,7 @@ public static class DependencyInjection
             x.SetKebabCaseEndpointNameFormatter();
             x.AddConsumer<CommitStockRequestedConsumer>();
             x.AddConsumer<ReleaseStockRequestedConsumer>();
+            x.AddConsumer<ReverseCommittedStockRequestedConsumer>();
 
             x.AddEntityFrameworkOutbox<InventoryDbContext>(o =>
             {

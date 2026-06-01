@@ -7,6 +7,7 @@ public interface IInventoryMetrics
     void RecordStockAdjusted();
     void RecordStockReserved();
     void RecordReservationCommitted();
+    void RecordReservationCommitReversed();
     void RecordReservationReleased();
     void RecordStockUnavailable(string reason);
 }

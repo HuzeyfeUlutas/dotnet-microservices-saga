@@ -7,5 +7,6 @@ public enum StockMovementType
     Reserved = 3,
     ReservationReleased = 4,
     ReservationCommitted = 5,
-    Adjustment = 6
+    Adjustment = 6,
+    ReservationCommitReversed = 7
 }

@@ -1,9 +1,9 @@
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Order.Application.Abstractions.Messaging;
-using Order.Application.Contracts.IntegrationEvents;
+using Marketplace.Contracts.Inventory.V1;
 using Order.Domain.Enums;
+using Order.Infrastructure.Messaging;
 using Order.Persistence.Context;
 using Order.Persistence.Sagas;
 using Payment.Application.Contracts.IntegrationEvents;
@@ -12,7 +12,7 @@ namespace Order.Infrastructure.Messaging.Consumers;
 
 public sealed class PaymentCaptureFailedConsumer(
     OrderDbContext context,
-    IIntegrationEventPublisher integrationEventPublisher,
+    IPublishEndpoint publishEndpoint,
     ILogger<PaymentCaptureFailedConsumer> logger) : IConsumer<PaymentCaptureFailed>
 {
     public async Task Consume(ConsumeContext<PaymentCaptureFailed> consumeContext)
@@ -49,30 +49,19 @@ public sealed class PaymentCaptureFailedConsumer(
             return;
         }
 
-        if (order.Status != OrderStatus.Failed)
-        {
-            order.MarkAsFailed(message.FailureReason);
-        }
-
-        sagaState.PaymentId = message.PaymentId;
-        sagaState.CurrentState = OrderCheckoutSagaStatus.Failed;
-        sagaState.LastProcessedEventId = message.EventId;
-        sagaState.FailureReason = message.FailureReason;
-        sagaState.CompletedAtUtc = DateTime.UtcNow;
-        sagaState.UpdatedAtUtc = DateTime.UtcNow;
-
-        await integrationEventPublisher.PublishAsync(
-            new OrderFailed(
+        await publishEndpoint.Publish(
+            new ReverseCommittedStockRequested(
                 Guid.NewGuid(),
                 order.Id,
-                order.BuyerId,
-                message.PaymentId,
-                order.TotalAmount,
-                order.Currency,
-                message.FailureReason,
-                order.Lines.ToIntegrationItems(),
+                order.Lines.ToStockReservationItems(),
                 DateTime.UtcNow),
             consumeContext.CancellationToken);
+
+        sagaState.PaymentId = message.PaymentId;
+        sagaState.CurrentState = OrderCheckoutSagaStatus.StockReverseRequestedAfterPaymentCaptureFailure;
+        sagaState.LastProcessedEventId = message.EventId;
+        sagaState.FailureReason = message.FailureReason;
+        sagaState.UpdatedAtUtc = DateTime.UtcNow;
 
         await context.SaveChangesAsync(consumeContext.CancellationToken);
     }

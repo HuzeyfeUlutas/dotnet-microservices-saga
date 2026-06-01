@@ -41,3 +41,22 @@ public sealed record StockReleaseFailed(
     Guid OrderId,
     string FailureReason,
     DateTime OccurredAtUtc);
+
+public sealed record ReverseCommittedStockRequested(
+    Guid EventId,
+    Guid OrderId,
+    IReadOnlyCollection<StockReservationItem> Items,
+    DateTime OccurredAtUtc);
+
+public sealed record CommittedStockReversed(
+    Guid EventId,
+    Guid RequestEventId,
+    Guid OrderId,
+    DateTime OccurredAtUtc);
+
+public sealed record CommittedStockReverseFailed(
+    Guid EventId,
+    Guid RequestEventId,
+    Guid OrderId,
+    string FailureReason,
+    DateTime OccurredAtUtc);

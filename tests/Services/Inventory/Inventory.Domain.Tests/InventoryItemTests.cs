@@ -102,6 +102,41 @@ public class InventoryItemTests
             .WithMessage("Confirmed reservation cannot be released.");
     }
 
+    [Fact]
+    public void ReverseCommittedReservation_should_be_idempotent_for_reversed_commit()
+    {
+        var item = CreateItem();
+        var orderId = Guid.NewGuid();
+
+        item.Reserve(orderId, 2, DateTime.UtcNow, null);
+        item.CommitReservation(orderId, DateTime.UtcNow);
+
+        var firstReverse = item.ReverseCommittedReservation(orderId, DateTime.UtcNow);
+        var secondReverse = item.ReverseCommittedReservation(orderId, DateTime.UtcNow);
+
+        firstReverse.Should().BeTrue();
+        secondReverse.Should().BeFalse();
+        item.TotalQuantity.Should().Be(10);
+        item.ReservedQuantity.Should().Be(0);
+        item.Reservations.Single().Status.Should().Be(InventoryReservationStatus.CommitReversed);
+        item.StockMovements.Should().ContainSingle(
+            movement => movement.Type == StockMovementType.ReservationCommitReversed);
+    }
+
+    [Fact]
+    public void ReverseCommittedReservation_should_reject_pending_reservation()
+    {
+        var item = CreateItem();
+        var orderId = Guid.NewGuid();
+
+        item.Reserve(orderId, 2, DateTime.UtcNow, null);
+
+        var action = () => item.ReverseCommittedReservation(orderId, DateTime.UtcNow);
+
+        action.Should().Throw<DomainException>()
+            .WithMessage("Only confirmed reservation commit can be reversed.");
+    }
+
     private static InventoryItem CreateItem()
     {
         return new InventoryItem(Guid.NewGuid(), "SKU-001", 10);

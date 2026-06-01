@@ -43,6 +43,7 @@ public class InventoryReservation : BaseEntity<Guid>
     public DateTime? ExpiresAtUtc { get; private set; }
     public DateTime? ConfirmedAtUtc { get; private set; }
     public DateTime? ReleasedAtUtc { get; private set; }
+    public DateTime? CommitReversedAtUtc { get; private set; }
 
     internal void Confirm(DateTime confirmedAtUtc)
     {
@@ -58,6 +59,17 @@ public class InventoryReservation : BaseEntity<Guid>
 
         Status = InventoryReservationStatus.Released;
         ReleasedAtUtc = releasedAtUtc;
+    }
+
+    internal void ReverseCommit(DateTime reversedAtUtc)
+    {
+        if (Status != InventoryReservationStatus.Confirmed)
+        {
+            throw new DomainException("Only confirmed reservation commit can be reversed.");
+        }
+
+        Status = InventoryReservationStatus.CommitReversed;
+        CommitReversedAtUtc = reversedAtUtc;
     }
 
     private void EnsurePending(string action)

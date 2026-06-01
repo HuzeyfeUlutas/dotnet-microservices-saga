@@ -166,6 +166,26 @@ public class InventoryItem : AuditableEntity<Guid>
         return true;
     }
 
+    public bool ReverseCommittedReservation(Guid orderId, DateTime reversedAtUtc)
+    {
+        var reservation = GetReservation(orderId);
+
+        if (reservation.Status == InventoryReservationStatus.CommitReversed)
+        {
+            return false;
+        }
+
+        reservation.ReverseCommit(reversedAtUtc);
+        TotalQuantity += reservation.Quantity;
+        AddStockMovement(
+            StockMovementType.ReservationCommitReversed,
+            reservation.Quantity,
+            "Reservation commit reversed",
+            orderId.ToString());
+
+        return true;
+    }
+
     private InventoryReservation GetReservation(Guid orderId)
     {
         var reservation = _reservations.SingleOrDefault(x => x.OrderId == orderId);

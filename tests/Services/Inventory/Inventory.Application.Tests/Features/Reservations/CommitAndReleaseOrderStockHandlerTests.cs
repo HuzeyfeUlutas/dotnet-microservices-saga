@@ -2,6 +2,7 @@ using FluentAssertions;
 using Inventory.Application.Abstractions.Observability;
 using Inventory.Application.Features.Reservations.CommitOrderStock;
 using Inventory.Application.Features.Reservations.ReleaseOrderStock;
+using Inventory.Application.Features.Reservations.ReverseCommittedOrderStock;
 using Inventory.Application.Tests.Support;
 using Inventory.Domain.Entities;
 using Inventory.Domain.Enums;
@@ -111,6 +112,78 @@ public class CommitAndReleaseOrderStockHandlerTests
         items.SelectMany(item => item.Reservations).Should().OnlyContain(
             reservation => reservation.Status == InventoryReservationStatus.Released);
         metrics.Received(2).RecordReservationReleased();
+    }
+
+    [Fact]
+    public async Task ReverseCommittedOrderStock_should_reverse_all_committed_reservations_atomically()
+    {
+        var factory = new InventoryTestDbContextFactory();
+        var orderId = Guid.NewGuid();
+        var firstProductId = Guid.NewGuid();
+        var secondProductId = Guid.NewGuid();
+        var firstItem = new InventoryItem(firstProductId, "SKU-1", 10);
+        var secondItem = new InventoryItem(secondProductId, "SKU-2", 8);
+        firstItem.Reserve(orderId, 2, DateTime.UtcNow);
+        secondItem.Reserve(orderId, 3, DateTime.UtcNow);
+        firstItem.CommitReservation(orderId, DateTime.UtcNow);
+        secondItem.CommitReservation(orderId, DateTime.UtcNow);
+        await SeedInventoryAsync(factory, [firstItem, secondItem]);
+        await using var context = factory.CreateContext();
+        var metrics = Substitute.For<IInventoryMetrics>();
+        var handler = new ReverseCommittedOrderStockHandler(context, metrics);
+
+        await handler.Handle(
+            new ReverseCommittedOrderStockCommand(
+                orderId,
+                [
+                    new ReverseCommittedOrderStockItem(firstProductId, "SKU-1"),
+                    new ReverseCommittedOrderStockItem(secondProductId, "SKU-2")
+                ]),
+            CancellationToken.None);
+
+        var items = await context.InventoryItems.Include(item => item.Reservations).ToListAsync();
+        items.Should().ContainSingle(item => item.ProductId == firstProductId && item.TotalQuantity == 10);
+        items.Should().ContainSingle(item => item.ProductId == secondProductId && item.TotalQuantity == 8);
+        items.SelectMany(item => item.Reservations).Should().OnlyContain(
+            reservation => reservation.Status == InventoryReservationStatus.CommitReversed);
+        metrics.Received(2).RecordReservationCommitReversed();
+    }
+
+    [Fact]
+    public async Task ReverseCommittedOrderStock_should_not_persist_partial_reverse_when_one_reservation_is_pending()
+    {
+        var factory = new InventoryTestDbContextFactory();
+        var orderId = Guid.NewGuid();
+        var firstProductId = Guid.NewGuid();
+        var secondProductId = Guid.NewGuid();
+        var firstItem = new InventoryItem(firstProductId, "SKU-1", 10);
+        var secondItem = new InventoryItem(secondProductId, "SKU-2", 8);
+        firstItem.Reserve(orderId, 2, DateTime.UtcNow);
+        secondItem.Reserve(orderId, 3, DateTime.UtcNow);
+        firstItem.CommitReservation(orderId, DateTime.UtcNow);
+        await SeedInventoryAsync(factory, [firstItem, secondItem]);
+
+        await using (var context = factory.CreateContext())
+        {
+            var handler = new ReverseCommittedOrderStockHandler(context, Substitute.For<IInventoryMetrics>());
+            var action = async () => await handler.Handle(
+                new ReverseCommittedOrderStockCommand(
+                    orderId,
+                    [
+                        new ReverseCommittedOrderStockItem(firstProductId, "SKU-1"),
+                        new ReverseCommittedOrderStockItem(secondProductId, "SKU-2")
+                    ]),
+                CancellationToken.None);
+
+            await action.Should().ThrowAsync<DomainException>();
+        }
+
+        await using var verificationContext = factory.CreateContext();
+        var reservations = await verificationContext.InventoryReservations
+            .OrderBy(reservation => reservation.Quantity)
+            .ToListAsync();
+        reservations[0].Status.Should().Be(InventoryReservationStatus.Confirmed);
+        reservations[1].Status.Should().Be(InventoryReservationStatus.Pending);
     }
 
     private static async Task SeedReservedInventoryAsync(

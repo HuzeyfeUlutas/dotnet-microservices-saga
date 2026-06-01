@@ -7,6 +7,8 @@ public static class OrderCheckoutSagaStatus
     public const string StockReleaseRequestedAfterPaymentFailure = "StockReleaseRequestedAfterPaymentFailure";
     public const string StockReleaseRequestedAfterStockCommitFailure = "StockReleaseRequestedAfterStockCommitFailure";
     public const string StockReleasedAfterStockCommitFailure = "StockReleasedAfterStockCommitFailure";
+    public const string StockReverseRequestedAfterPaymentCaptureFailure = "StockReverseRequestedAfterPaymentCaptureFailure";
+    public const string StockReversedAfterPaymentCaptureFailure = "StockReversedAfterPaymentCaptureFailure";
     public const string CaptureRequested = "CaptureRequested";
     public const string PaymentFailed = "PaymentFailed";
     public const string Completed = "Completed";
