@@ -1,8 +1,8 @@
 using FluentAssertions;
+using Marketplace.Contracts.Payment.V1;
 using NSubstitute;
 using Payment.Application.Abstractions.Messaging;
 using Payment.Application.Abstractions.Providers;
-using Payment.Application.Contracts.IntegrationEvents;
 using Payment.Application.DTOs;
 using Payment.Application.Features.Payments.CompleteFake3ds;
 using Payment.Application.Tests.Support;

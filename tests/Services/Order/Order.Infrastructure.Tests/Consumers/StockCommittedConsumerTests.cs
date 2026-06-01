@@ -1,12 +1,12 @@
 using FluentAssertions;
 using Marketplace.Contracts.Inventory.V1;
+using Marketplace.Contracts.Payment.V1;
 using MassTransit;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Order.Domain.ValueObjects;
 using Order.Infrastructure.Messaging.Consumers;
 using Order.Infrastructure.Tests.Support;
-using Payment.Application.Contracts.IntegrationEvents;
 using Xunit;
 
 namespace Order.Infrastructure.Tests.Consumers;

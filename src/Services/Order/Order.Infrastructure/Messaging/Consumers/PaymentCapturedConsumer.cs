@@ -1,4 +1,5 @@
 using MassTransit;
+using Marketplace.Contracts.Payment.V1;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Order.Application.Abstractions.Messaging;
@@ -6,7 +7,6 @@ using Order.Application.Contracts.IntegrationEvents;
 using Order.Domain.Enums;
 using Order.Persistence.Context;
 using Order.Persistence.Sagas;
-using Payment.Application.Contracts.IntegrationEvents;
 
 namespace Order.Infrastructure.Messaging.Consumers;
 

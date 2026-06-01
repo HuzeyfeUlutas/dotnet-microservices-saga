@@ -1,23 +1,21 @@
-using MediatR;
 using Marketplace.Contracts.Payment.V1;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Payment.Application.Abstractions.Messaging;
 using Payment.Application.Abstractions.Persistence;
-using Payment.Application.Abstractions.Providers;
 using Payment.Application.Common.Exceptions;
 using Payment.Application.DTOs;
 using Payment.Application.Features.Payments;
 using Payment.Domain.Enums;
 using PaymentEntity = Payment.Domain.Entities.Payment;
 
-namespace Payment.Application.Features.Payments.RefundPayment;
+namespace Payment.Application.Features.Payments.CancelPendingPayment;
 
-public class RefundPaymentHandler(
+public sealed class CancelPendingPaymentHandler(
     IPaymentDbContext context,
-    IPaymentProvider paymentProvider,
-    IIntegrationEventPublisher integrationEventPublisher) : IRequestHandler<RefundPaymentCommand, PaymentDto>
+    IIntegrationEventPublisher integrationEventPublisher) : IRequestHandler<CancelPendingPaymentCommand, PaymentDto>
 {
-    public async Task<PaymentDto> Handle(RefundPaymentCommand request, CancellationToken cancellationToken)
+    public async Task<PaymentDto> Handle(CancelPendingPaymentCommand request, CancellationToken cancellationToken)
     {
         var payment = await context.Payments
             .Include(x => x.Attempts)
@@ -28,24 +26,16 @@ public class RefundPaymentHandler(
             throw new NotFoundException($"Payment '{request.PaymentId}' was not found.");
         }
 
-        if (payment.Status == PaymentStatus.Refunded)
+        if (payment.Status == PaymentStatus.Cancelled)
         {
+            await PublishCancelledEventAsync(request.RequestEventId, payment, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
             return payment.ToDto();
         }
 
-        payment.StartRefund();
-        var providerResult = await paymentProvider.RefundAsync(payment, cancellationToken);
+        payment.CancelPending(request.Reason);
 
-        if (providerResult.Succeeded)
-        {
-            payment.MarkAsRefunded(providerResult.ProviderTransactionId);
-        }
-        else
-        {
-            payment.MarkRefundAsFailed(providerResult.FailureReason ?? "Payment refund failed.");
-        }
-
-        await PublishResultEventAsync(payment, providerResult.Succeeded, cancellationToken);
+        await PublishCancelledEventAsync(request.RequestEventId, payment, cancellationToken);
 
         try
         {
@@ -55,43 +45,32 @@ public class RefundPaymentHandler(
         {
             var currentPayment = await GetCurrentPaymentAsync(request.PaymentId, cancellationToken);
 
-            if (currentPayment?.Status == PaymentStatus.Refunded)
+            if (currentPayment?.Status == PaymentStatus.Cancelled)
             {
                 return currentPayment;
             }
 
-            throw new ConflictException($"Payment '{request.PaymentId}' could not be refunded due to a concurrent change.");
+            throw new ConflictException($"Payment '{request.PaymentId}' could not be cancelled due to a concurrent change.");
+        }
+        catch (DbUpdateException exception)
+        {
+            throw new ConflictException($"Payment '{request.PaymentId}' could not be cancelled. {exception.Message}");
         }
 
         return payment.ToDto();
     }
 
-    private Task PublishResultEventAsync(
+    private Task PublishCancelledEventAsync(
+        Guid requestEventId,
         PaymentEntity payment,
-        bool refunded,
         CancellationToken cancellationToken)
     {
-        if (refunded)
-        {
-            return integrationEventPublisher.PublishAsync(
-                new PaymentRefunded(
-                    Guid.NewGuid(),
-                    payment.Id,
-                    payment.OrderId,
-                    payment.Amount.Amount,
-                    payment.Amount.Currency,
-                    DateTime.UtcNow),
-                cancellationToken);
-        }
-
         return integrationEventPublisher.PublishAsync(
-            new PaymentRefundFailed(
+            new PaymentCancelled(
                 Guid.NewGuid(),
+                requestEventId,
                 payment.Id,
                 payment.OrderId,
-                payment.Amount.Amount,
-                payment.Amount.Currency,
-                payment.FailureReason ?? "Payment refund failed.",
                 DateTime.UtcNow),
             cancellationToken);
     }

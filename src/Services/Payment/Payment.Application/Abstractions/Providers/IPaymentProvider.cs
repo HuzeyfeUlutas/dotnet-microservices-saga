@@ -12,4 +12,6 @@ public interface IPaymentProvider
     Task<ProviderPaymentResultDto> CaptureAsync(PaymentEntity payment, CancellationToken cancellationToken = default);
 
     Task<ProviderPaymentResultDto> RefundAsync(PaymentEntity payment, CancellationToken cancellationToken = default);
+
+    Task<ProviderPaymentResultDto> VoidAuthorizationAsync(PaymentEntity payment, CancellationToken cancellationToken = default);
 }

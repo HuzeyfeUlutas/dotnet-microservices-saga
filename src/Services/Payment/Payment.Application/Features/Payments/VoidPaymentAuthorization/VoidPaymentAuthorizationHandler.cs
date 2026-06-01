@@ -1,5 +1,5 @@
-using MediatR;
 using Marketplace.Contracts.Payment.V1;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Payment.Application.Abstractions.Messaging;
 using Payment.Application.Abstractions.Persistence;
@@ -10,14 +10,14 @@ using Payment.Application.Features.Payments;
 using Payment.Domain.Enums;
 using PaymentEntity = Payment.Domain.Entities.Payment;
 
-namespace Payment.Application.Features.Payments.RefundPayment;
+namespace Payment.Application.Features.Payments.VoidPaymentAuthorization;
 
-public class RefundPaymentHandler(
+public sealed class VoidPaymentAuthorizationHandler(
     IPaymentDbContext context,
     IPaymentProvider paymentProvider,
-    IIntegrationEventPublisher integrationEventPublisher) : IRequestHandler<RefundPaymentCommand, PaymentDto>
+    IIntegrationEventPublisher integrationEventPublisher) : IRequestHandler<VoidPaymentAuthorizationCommand, PaymentDto>
 {
-    public async Task<PaymentDto> Handle(RefundPaymentCommand request, CancellationToken cancellationToken)
+    public async Task<PaymentDto> Handle(VoidPaymentAuthorizationCommand request, CancellationToken cancellationToken)
     {
         var payment = await context.Payments
             .Include(x => x.Attempts)
@@ -28,24 +28,26 @@ public class RefundPaymentHandler(
             throw new NotFoundException($"Payment '{request.PaymentId}' was not found.");
         }
 
-        if (payment.Status == PaymentStatus.Refunded)
+        if (payment.Status == PaymentStatus.AuthorizationVoided)
         {
+            await PublishResultEventAsync(request.RequestEventId, payment, true, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
             return payment.ToDto();
         }
 
-        payment.StartRefund();
-        var providerResult = await paymentProvider.RefundAsync(payment, cancellationToken);
+        payment.StartAuthorizationVoid();
+        var providerResult = await paymentProvider.VoidAuthorizationAsync(payment, cancellationToken);
 
         if (providerResult.Succeeded)
         {
-            payment.MarkAsRefunded(providerResult.ProviderTransactionId);
+            payment.MarkAuthorizationAsVoided(providerResult.ProviderTransactionId);
         }
         else
         {
-            payment.MarkRefundAsFailed(providerResult.FailureReason ?? "Payment refund failed.");
+            payment.MarkAuthorizationVoidAsFailed(providerResult.FailureReason ?? "Payment authorization void failed.");
         }
 
-        await PublishResultEventAsync(payment, providerResult.Succeeded, cancellationToken);
+        await PublishResultEventAsync(request.RequestEventId, payment, providerResult.Succeeded, cancellationToken);
 
         try
         {
@@ -55,43 +57,46 @@ public class RefundPaymentHandler(
         {
             var currentPayment = await GetCurrentPaymentAsync(request.PaymentId, cancellationToken);
 
-            if (currentPayment?.Status == PaymentStatus.Refunded)
+            if (currentPayment?.Status == PaymentStatus.AuthorizationVoided)
             {
                 return currentPayment;
             }
 
-            throw new ConflictException($"Payment '{request.PaymentId}' could not be refunded due to a concurrent change.");
+            throw new ConflictException($"Payment '{request.PaymentId}' authorization could not be voided due to a concurrent change.");
+        }
+        catch (DbUpdateException exception)
+        {
+            throw new ConflictException($"Payment '{request.PaymentId}' authorization could not be voided. {exception.Message}");
         }
 
         return payment.ToDto();
     }
 
     private Task PublishResultEventAsync(
+        Guid requestEventId,
         PaymentEntity payment,
-        bool refunded,
+        bool voided,
         CancellationToken cancellationToken)
     {
-        if (refunded)
+        if (voided)
         {
             return integrationEventPublisher.PublishAsync(
-                new PaymentRefunded(
+                new PaymentAuthorizationVoided(
                     Guid.NewGuid(),
+                    requestEventId,
                     payment.Id,
                     payment.OrderId,
-                    payment.Amount.Amount,
-                    payment.Amount.Currency,
                     DateTime.UtcNow),
                 cancellationToken);
         }
 
         return integrationEventPublisher.PublishAsync(
-            new PaymentRefundFailed(
+            new PaymentAuthorizationVoidFailed(
                 Guid.NewGuid(),
+                requestEventId,
                 payment.Id,
                 payment.OrderId,
-                payment.Amount.Amount,
-                payment.Amount.Currency,
-                payment.FailureReason ?? "Payment refund failed.",
+                payment.FailureReason ?? "Payment authorization void failed.",
                 DateTime.UtcNow),
             cancellationToken);
     }

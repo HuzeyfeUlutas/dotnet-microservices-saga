@@ -147,6 +147,8 @@ Payment now supports inbound saga continuation messages through transport-agnost
 ```text
 CapturePaymentRequested
 RefundPaymentRequested
+VoidPaymentAuthorizationRequested
+CancelPendingPaymentRequested
 ```
 
 Consumer behavior:
@@ -158,9 +160,9 @@ Consumer behavior:
 
 This keeps the Payment service aligned with the repository messaging standard and allows Order saga continuation without direct HTTP coupling.
 
-## Approved Compensation Additions
+## Compensation Capabilities
 
-Checkout state machine migration requires Payment to add:
+Payment now exposes these checkout compensation commands and explicit result events:
 
 ```text
 VoidPaymentAuthorizationRequested
@@ -179,6 +181,8 @@ refund -> return money after capture
 ```
 
 The provider abstraction must expose a void-authorization operation. Pending payment cancellation must reuse Payment-owned Domain rules through Application handlers.
+
+Order-side coordination of stock and payment compensation results remains part of the checkout saga migration.
 
 Payment initiation will move from the internal HTTP create endpoint to a Payment-owned gRPC method:
 
@@ -219,6 +223,7 @@ returns redirect-style payment action for authorization
 simulates 3DS completion
 simulates capture success
 simulates refund success
+simulates authorization void success
 ```
 
 The provider abstraction remains ready for future real integrations, but the service is still development-focused at the provider layer.

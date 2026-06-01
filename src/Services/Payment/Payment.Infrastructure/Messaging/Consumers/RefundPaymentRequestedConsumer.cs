@@ -1,7 +1,7 @@
 using MassTransit;
 using MediatR;
 using Microsoft.Extensions.Logging;
-using Payment.Application.Contracts.IntegrationEvents;
+using Marketplace.Contracts.Payment.V1;
 using Payment.Application.Features.Payments.RefundPayment;
 
 namespace Payment.Infrastructure.Messaging.Consumers;

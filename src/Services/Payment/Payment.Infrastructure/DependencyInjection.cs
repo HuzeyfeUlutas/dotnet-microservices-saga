@@ -23,11 +23,18 @@ public static class DependencyInjection
             x.SetKebabCaseEndpointNameFormatter();
             x.AddConsumer<CapturePaymentRequestedConsumer>();
             x.AddConsumer<RefundPaymentRequestedConsumer>();
+            x.AddConsumer<VoidPaymentAuthorizationRequestedConsumer>();
+            x.AddConsumer<CancelPendingPaymentRequestedConsumer>();
 
             x.AddEntityFrameworkOutbox<PaymentDbContext>(o =>
             {
                 o.UsePostgres();
                 o.UseBusOutbox();
+            });
+
+            x.AddConfigureEndpointsCallback((context, _, cfg) =>
+            {
+                cfg.UseEntityFrameworkOutbox<PaymentDbContext>(context);
             });
 
             x.UsingRabbitMq((context, cfg) =>

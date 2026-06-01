@@ -33,7 +33,6 @@
     <ItemGroup>
         <ProjectReference Include="..\Order.Application\Order.Application.csproj" />
         <ProjectReference Include="..\Order.Persistence\Order.Persistence.csproj" />
-        <ProjectReference Include="..\..\Payment\Payment.Application\Payment.Application.csproj" />
     </ItemGroup>
 
     <ItemGroup>

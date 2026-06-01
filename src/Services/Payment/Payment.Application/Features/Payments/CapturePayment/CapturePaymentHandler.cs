@@ -1,10 +1,10 @@
 using MediatR;
+using Marketplace.Contracts.Payment.V1;
 using Microsoft.EntityFrameworkCore;
 using Payment.Application.Abstractions.Messaging;
 using Payment.Application.Abstractions.Persistence;
 using Payment.Application.Abstractions.Providers;
 using Payment.Application.Common.Exceptions;
-using Payment.Application.Contracts.IntegrationEvents;
 using Payment.Application.DTOs;
 using Payment.Application.Features.Payments;
 using Payment.Domain.Enums;

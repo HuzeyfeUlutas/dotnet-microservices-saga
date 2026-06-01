@@ -49,6 +49,8 @@ public class Payment : AuditableEntity<Guid>
     public DateTime? RefundedAtUtc { get; private set; }
     public DateTime? RefundFailedAtUtc { get; private set; }
     public DateTime? CancelledAtUtc { get; private set; }
+    public DateTime? AuthorizationVoidedAtUtc { get; private set; }
+    public DateTime? AuthorizationVoidFailedAtUtc { get; private set; }
     public string? FailureReason { get; private set; }
     public uint RowVersion { get; private set; }
     public IReadOnlyCollection<PaymentAttempt> Attempts => _attempts.AsReadOnly();
@@ -188,12 +190,69 @@ public class Payment : AuditableEntity<Guid>
         FailureReason = NormalizeRequired(reason, "Failure reason cannot be empty.");
     }
 
-    public void Cancel(string reason)
+    public PaymentAttempt StartAuthorizationVoid(string? idempotencyKey = null)
     {
-        if (Status is PaymentStatus.Authorized or PaymentStatus.Captured or PaymentStatus.Refunded)
+        if (Status is not PaymentStatus.Authorized and
+            not PaymentStatus.CaptureFailed and
+            not PaymentStatus.AuthorizationVoidFailed)
         {
-            throw new DomainException("Authorized, captured, or refunded payment cannot be cancelled.");
+            throw new DomainException("Authorization void can only be started for an authorized payment.");
         }
+
+        return AddAttempt(PaymentAttemptType.AuthorizationVoid, idempotencyKey);
+    }
+
+    public void MarkAuthorizationAsVoided(string? providerTransactionId = null)
+    {
+        if (Status is not PaymentStatus.Authorized and
+            not PaymentStatus.CaptureFailed and
+            not PaymentStatus.AuthorizationVoidFailed)
+        {
+            throw new DomainException("Payment authorization cannot be voided from its current state.");
+        }
+
+        var attempt = GetCurrentAttempt(PaymentAttemptType.AuthorizationVoid);
+        attempt.MarkAsSucceeded(ProviderPaymentId, providerTransactionId);
+
+        Status = PaymentStatus.AuthorizationVoided;
+        ProviderTransactionId = NormalizeOptional(providerTransactionId) ?? ProviderTransactionId;
+        AuthorizationVoidedAtUtc = DateTime.UtcNow;
+        AuthorizationVoidFailedAtUtc = null;
+        FailureReason = null;
+    }
+
+    public void MarkAuthorizationVoidAsFailed(string reason)
+    {
+        if (Status is not PaymentStatus.Authorized and
+            not PaymentStatus.CaptureFailed and
+            not PaymentStatus.AuthorizationVoidFailed)
+        {
+            throw new DomainException("Payment authorization void cannot fail from its current state.");
+        }
+
+        var attempt = GetCurrentAttempt(PaymentAttemptType.AuthorizationVoid);
+        attempt.MarkAsFailed(reason);
+
+        Status = PaymentStatus.AuthorizationVoidFailed;
+        AuthorizationVoidFailedAtUtc = DateTime.UtcNow;
+        FailureReason = NormalizeRequired(reason, "Failure reason cannot be empty.");
+    }
+
+    public void CancelPending(string reason)
+    {
+        if (Status == PaymentStatus.Cancelled)
+        {
+            return;
+        }
+
+        if (Status is not PaymentStatus.Pending and not PaymentStatus.RequiresAction)
+        {
+            throw new DomainException("Only pending payment can be cancelled.");
+        }
+
+        var activeAttempt = _attempts.SingleOrDefault(x =>
+            x.Status is PaymentAttemptStatus.Processing or PaymentAttemptStatus.RequiresAction);
+        activeAttempt?.Cancel(reason);
 
         Status = PaymentStatus.Cancelled;
         CancelledAtUtc = DateTime.UtcNow;

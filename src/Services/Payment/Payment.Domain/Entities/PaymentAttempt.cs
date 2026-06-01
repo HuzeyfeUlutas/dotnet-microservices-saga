@@ -78,6 +78,15 @@ public class PaymentAttempt : BaseEntity<Guid>
         FailureReason = NormalizeRequired(reason, "Failure reason cannot be empty.");
     }
 
+    internal void Cancel(string reason)
+    {
+        EnsureInProgress("cancelled");
+
+        Status = PaymentAttemptStatus.Cancelled;
+        CompletedAtUtc = DateTime.UtcNow;
+        FailureReason = NormalizeRequired(reason, "Cancellation reason cannot be empty.");
+    }
+
     private void EnsureProcessing(string action)
     {
         if (Status != PaymentAttemptStatus.Processing)

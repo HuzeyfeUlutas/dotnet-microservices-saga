@@ -10,5 +10,7 @@ public enum PaymentStatus
     CaptureFailed = 6,
     Refunded = 7,
     RefundFailed = 8,
-    Cancelled = 9
+    Cancelled = 9,
+    AuthorizationVoided = 10,
+    AuthorizationVoidFailed = 11
 }

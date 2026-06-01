@@ -1,12 +1,12 @@
 using MassTransit;
 using Marketplace.Contracts.Inventory.V1;
+using Marketplace.Contracts.Payment.V1;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Order.Domain.Enums;
 using Order.Infrastructure.Messaging;
 using Order.Persistence.Context;
 using Order.Persistence.Sagas;
-using Payment.Application.Contracts.IntegrationEvents;
 
 namespace Order.Infrastructure.Messaging.Consumers;
 

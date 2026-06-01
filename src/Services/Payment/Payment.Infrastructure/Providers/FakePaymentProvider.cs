@@ -53,6 +53,16 @@ public class FakePaymentProvider : IPaymentProvider
         return Task.FromResult(result);
     }
 
+    public Task<ProviderPaymentResultDto> VoidAuthorizationAsync(PaymentEntity payment, CancellationToken cancellationToken = default)
+    {
+        var result = new ProviderPaymentResultDto(
+            Succeeded: true,
+            ProviderPaymentId: payment.ProviderPaymentId ?? CreateProviderPaymentId(payment.Id),
+            ProviderTransactionId: CreateProviderTransactionId(payment.Id, "auth-void"));
+
+        return Task.FromResult(result);
+    }
+
     private static string CreateProviderPaymentId(Guid paymentId)
     {
         return $"fake-pay-{paymentId:N}";
