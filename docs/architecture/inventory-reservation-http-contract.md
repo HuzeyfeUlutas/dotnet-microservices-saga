@@ -4,6 +4,16 @@ This document records the original internal HTTP contract for Inventory reservat
 
 These endpoints are internal-only and must be removed after the gRPC and messaging migration is complete.
 
+Current runtime status:
+
+```text
+POST /api/reservations -> removed; replaced by ReserveOrderStock gRPC
+POST /api/reservations/commit -> removed; replaced by CommitStockRequested
+POST /api/reservations/release -> removed; replaced by ReleaseStockRequested
+```
+
+The reverse-committed-stock compensation command remains planned. It was not exposed as an HTTP endpoint.
+
 New implementations must follow:
 
 ```text
@@ -111,9 +121,11 @@ Do not use only `ProductId` for checkout reservation flows.
 
 ## Removal Rule
 
-Remove these HTTP endpoints when:
+The runtime HTTP endpoints were removed after:
 
 1. Order uses the batch reservation gRPC method.
-2. Inventory consumes commit, release, and reverse commands through MassTransit.
-3. Inventory publishes explicit result events for every command.
+2. Inventory consumes commit and release commands through MassTransit.
+3. Inventory publishes explicit commit and release result events.
 4. gRPC and messaging integration tests pass.
+
+`ReverseCommittedStockRequested` remains a separate messaging-only compensation addition.

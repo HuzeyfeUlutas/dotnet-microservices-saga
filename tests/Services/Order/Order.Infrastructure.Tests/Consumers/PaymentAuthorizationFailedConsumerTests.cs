@@ -1,10 +1,8 @@
 using FluentAssertions;
+using Marketplace.Contracts.Inventory.V1;
 using MassTransit;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Order.Application.Abstractions.Messaging;
-using Order.Application.Abstractions.Services;
-using Order.Application.Contracts.IntegrationEvents;
 using Order.Domain.Enums;
 using Order.Domain.ValueObjects;
 using Order.Infrastructure.Messaging.Consumers;
@@ -17,7 +15,7 @@ namespace Order.Infrastructure.Tests.Consumers;
 public class PaymentAuthorizationFailedConsumerTests
 {
     [Fact]
-    public async Task Consume_should_release_reservations_and_publish_payment_failed_event()
+    public async Task Consume_should_publish_stock_release_request()
     {
         var factory = new OrderTestDbContextFactory();
         await using var context = factory.CreateContext();
@@ -30,12 +28,10 @@ public class PaymentAuthorizationFailedConsumerTests
         context.Orders.Add(order);
         await context.SaveChangesAsync();
 
-        var publisher = Substitute.For<IIntegrationEventPublisher>();
-        var inventoryClient = Substitute.For<IInventoryReservationClient>();
+        var publishEndpoint = Substitute.For<IPublishEndpoint>();
         var consumer = new PaymentAuthorizationFailedConsumer(
             context,
-            publisher,
-            inventoryClient,
+            publishEndpoint,
             NullLogger<PaymentAuthorizationFailedConsumer>.Instance);
         var message = new PaymentAuthorizationFailed(Guid.NewGuid(), Guid.NewGuid(), order.Id, order.TotalAmount, order.Currency, "3ds failed", DateTime.UtcNow);
         var consumeContext = Substitute.For<ConsumeContext<PaymentAuthorizationFailed>>();
@@ -44,12 +40,16 @@ public class PaymentAuthorizationFailedConsumerTests
 
         await consumer.Consume(consumeContext);
 
-        context.Orders.Single().Status.Should().Be(OrderStatus.PaymentFailed);
-        await inventoryClient.Received(1)
-            .ReleaseAsync(order.Lines.Single().ProductId, order.Lines.Single().Sku, order.Id, CancellationToken.None);
-        await publisher.Received(1)
-            .PublishAsync(
-                Arg.Is<OrderPaymentFailed>(x => x.OrderId == order.Id && x.FailureReason == "3ds failed"),
+        context.Orders.Single().Status.Should().Be(OrderStatus.WaitingForPayment);
+        await publishEndpoint.Received(1)
+            .Publish(
+                Arg.Is<ReleaseStockRequested>(x =>
+                    x.OrderId == order.Id &&
+                    x.Items.Count == 1 &&
+                    x.Items.Single().ProductId == order.Lines.Single().ProductId),
                 CancellationToken.None);
+        context.OrderCheckoutSagaStates.Should().ContainSingle(x =>
+            x.OrderId == order.Id &&
+            x.CurrentState == Order.Persistence.Sagas.OrderCheckoutSagaStatus.StockReleaseRequestedAfterPaymentFailure);
     }
 }

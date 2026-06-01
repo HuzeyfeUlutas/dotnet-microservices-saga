@@ -224,13 +224,13 @@ Operational endpoints remain HTTP:
 
 ## Current Migration Direction
 
-The Order checkout flow will migrate in this order:
+The Order checkout flow migration is tracked in this order:
 
-1. `Order -> Catalog` purchase snapshot HTTP call to gRPC
-2. `Order -> Inventory` line-by-line HTTP reservation calls to one atomic batch gRPC call
-3. `Order -> Payment` create-payment HTTP call to gRPC
-4. Inventory commit and release HTTP calls to MassTransit commands and result events
-5. Payment authorization void and pending cancellation to MassTransit commands and result events
-6. Order consumer-based orchestration to a persisted MassTransit state machine saga
-7. removal of internal-only HTTP reservation endpoints
-
+1. Completed: `Order -> Catalog` purchase snapshot HTTP call to gRPC
+2. Completed: `Order -> Inventory` line-by-line HTTP reservation calls to one atomic batch gRPC call
+3. Completed: `Order -> Payment` create-payment HTTP call to gRPC
+4. Completed: Inventory commit and release HTTP calls to MassTransit commands and result events
+5. Pending: committed-stock reverse compensation through MassTransit commands and result events
+6. Pending: Payment authorization void and pending cancellation through MassTransit commands and result events
+7. Pending: Order consumer-based orchestration to a persisted MassTransit state machine saga
+8. Completed: removal of internal-only HTTP reservation endpoints

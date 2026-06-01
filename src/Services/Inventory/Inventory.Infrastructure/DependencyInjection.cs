@@ -2,6 +2,7 @@ using Inventory.Application.Abstractions.Messaging;
 using Inventory.Application.Abstractions.Observability;
 using Inventory.Infrastructure.Configuration;
 using Inventory.Infrastructure.Messaging;
+using Inventory.Infrastructure.Messaging.Consumers;
 using Inventory.Infrastructure.Observability;
 using Inventory.Persistence.Context;
 using MassTransit;
@@ -22,11 +23,18 @@ public static class DependencyInjection
         services.AddMassTransit(x =>
         {
             x.SetKebabCaseEndpointNameFormatter();
+            x.AddConsumer<CommitStockRequestedConsumer>();
+            x.AddConsumer<ReleaseStockRequestedConsumer>();
 
             x.AddEntityFrameworkOutbox<InventoryDbContext>(o =>
             {
                 o.UsePostgres();
                 o.UseBusOutbox();
+            });
+
+            x.AddConfigureEndpointsCallback((context, _, cfg) =>
+            {
+                cfg.UseEntityFrameworkOutbox<InventoryDbContext>(context);
             });
 
             x.UsingRabbitMq((context, cfg) =>

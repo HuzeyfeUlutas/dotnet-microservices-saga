@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using Order.Application.Abstractions.Messaging;
 using Order.Application.Abstractions.Services;
 using Order.Application.Common.Exceptions;
 using Order.Application.Features.Checkout.CreateCheckout;
@@ -34,6 +35,7 @@ public class CreateCheckoutHandlerTests
             catalogClient,
             inventoryClient,
             paymentClient,
+            Substitute.For<IStockReservationRollbackPublisher>(),
             NullLogger<CreateCheckoutHandler>.Instance);
 
         var act = () => handler.Handle(
@@ -83,6 +85,7 @@ public class CreateCheckoutHandlerTests
             catalogClient,
             inventoryClient,
             paymentClient,
+            Substitute.For<IStockReservationRollbackPublisher>(),
             NullLogger<CreateCheckoutHandler>.Instance);
 
         var result = await handler.Handle(
@@ -152,6 +155,7 @@ public class CreateCheckoutHandlerTests
             catalogClient,
             inventoryClient,
             paymentClient,
+            Substitute.For<IStockReservationRollbackPublisher>(),
             NullLogger<CreateCheckoutHandler>.Instance);
 
         var result = await handler.Handle(

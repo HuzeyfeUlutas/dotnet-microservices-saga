@@ -1,8 +1,9 @@
 using MassTransit;
+using Marketplace.Contracts.Inventory.V1;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Order.Application.Abstractions.Services;
 using Order.Domain.Enums;
+using Order.Infrastructure.Messaging;
 using Order.Persistence.Context;
 using Order.Persistence.Sagas;
 using Payment.Application.Contracts.IntegrationEvents;
@@ -11,7 +12,6 @@ namespace Order.Infrastructure.Messaging.Consumers;
 
 public sealed class PaymentAuthorizedConsumer(
     OrderDbContext context,
-    IInventoryReservationClient inventoryReservationClient,
     IPublishEndpoint publishEndpoint,
     ILogger<PaymentAuthorizedConsumer> logger) : IConsumer<PaymentAuthorized>
 {
@@ -38,7 +38,7 @@ public sealed class PaymentAuthorizedConsumer(
         var sagaState = await GetOrCreateSagaStateAsync(order.Id, message.PaymentId, consumeContext.CancellationToken);
 
         if (sagaState.LastProcessedEventId == message.EventId ||
-            sagaState.CurrentState is OrderCheckoutSagaStatus.CaptureRequested or OrderCheckoutSagaStatus.Completed or OrderCheckoutSagaStatus.PaymentFailed or OrderCheckoutSagaStatus.Failed)
+            sagaState.CurrentState is not OrderCheckoutSagaStatus.WaitingForPayment)
         {
             return;
         }
@@ -49,25 +49,16 @@ public sealed class PaymentAuthorizedConsumer(
             return;
         }
 
-        foreach (var line in order.Lines)
-        {
-            await inventoryReservationClient.CommitAsync(
-                line.ProductId,
-                line.Sku,
-                order.Id,
-                consumeContext.CancellationToken);
-        }
-
         await publishEndpoint.Publish(
-            new CapturePaymentRequested(
+            new CommitStockRequested(
                 Guid.NewGuid(),
-                message.PaymentId,
                 message.OrderId,
+                order.Lines.ToStockReservationItems(),
                 DateTime.UtcNow),
             consumeContext.CancellationToken);
 
         sagaState.PaymentId = message.PaymentId;
-        sagaState.CurrentState = OrderCheckoutSagaStatus.CaptureRequested;
+        sagaState.CurrentState = OrderCheckoutSagaStatus.StockCommitRequested;
         sagaState.LastProcessedEventId = message.EventId;
         sagaState.FailureReason = null;
         sagaState.UpdatedAtUtc = DateTime.UtcNow;

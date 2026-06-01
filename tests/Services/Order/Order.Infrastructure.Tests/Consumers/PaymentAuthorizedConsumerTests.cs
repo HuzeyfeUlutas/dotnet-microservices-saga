@@ -1,8 +1,8 @@
 using FluentAssertions;
+using Marketplace.Contracts.Inventory.V1;
 using MassTransit;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Order.Application.Abstractions.Services;
 using Order.Domain.Enums;
 using Order.Domain.ValueObjects;
 using Order.Infrastructure.Messaging.Consumers;
@@ -15,7 +15,7 @@ namespace Order.Infrastructure.Tests.Consumers;
 public class PaymentAuthorizedConsumerTests
 {
     [Fact]
-    public async Task Consume_should_commit_reservations_and_publish_capture_request()
+    public async Task Consume_should_publish_stock_commit_request()
     {
         var factory = new OrderTestDbContextFactory();
         await using var context = factory.CreateContext();
@@ -28,11 +28,9 @@ public class PaymentAuthorizedConsumerTests
         context.Orders.Add(order);
         await context.SaveChangesAsync();
 
-        var inventoryClient = Substitute.For<IInventoryReservationClient>();
         var publishEndpoint = Substitute.For<IPublishEndpoint>();
         var consumer = new PaymentAuthorizedConsumer(
             context,
-            inventoryClient,
             publishEndpoint,
             NullLogger<PaymentAuthorizedConsumer>.Instance);
         var message = new PaymentAuthorized(Guid.NewGuid(), Guid.NewGuid(), order.Id, order.TotalAmount, order.Currency, DateTime.UtcNow);
@@ -42,11 +40,14 @@ public class PaymentAuthorizedConsumerTests
 
         await consumer.Consume(consumeContext);
 
-        await inventoryClient.Received(1)
-            .CommitAsync(order.Lines.Single().ProductId, order.Lines.Single().Sku, order.Id, CancellationToken.None);
         await publishEndpoint.Received(1)
-            .Publish(Arg.Is<CapturePaymentRequested>(x => x.OrderId == order.Id && x.PaymentId == message.PaymentId), CancellationToken.None);
+            .Publish(
+                Arg.Is<CommitStockRequested>(x =>
+                    x.OrderId == order.Id &&
+                    x.Items.Count == 1 &&
+                    x.Items.Single().ProductId == order.Lines.Single().ProductId),
+                CancellationToken.None);
         context.OrderCheckoutSagaStates.Should().ContainSingle(x =>
-            x.OrderId == order.Id && x.CurrentState == Order.Persistence.Sagas.OrderCheckoutSagaStatus.CaptureRequested);
+            x.OrderId == order.Id && x.CurrentState == Order.Persistence.Sagas.OrderCheckoutSagaStatus.StockCommitRequested);
     }
 }

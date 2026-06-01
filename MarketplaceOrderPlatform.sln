@@ -106,6 +106,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Inventory.API.Tests", "test
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Payment.API.Tests", "tests\Services\Payment\Payment.API.Tests\Payment.API.Tests.csproj", "{483C2F3F-9B76-4FCD-90E6-5EA811890CD3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Inventory.Infrastructure.Tests", "tests\Services\Inventory\Inventory.Infrastructure.Tests\Inventory.Infrastructure.Tests.csproj", "{0312EB93-3247-42D9-84B7-533C96ECB28A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -584,6 +586,18 @@ Global
 		{483C2F3F-9B76-4FCD-90E6-5EA811890CD3}.Release|x64.Build.0 = Release|Any CPU
 		{483C2F3F-9B76-4FCD-90E6-5EA811890CD3}.Release|x86.ActiveCfg = Release|Any CPU
 		{483C2F3F-9B76-4FCD-90E6-5EA811890CD3}.Release|x86.Build.0 = Release|Any CPU
+		{0312EB93-3247-42D9-84B7-533C96ECB28A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0312EB93-3247-42D9-84B7-533C96ECB28A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0312EB93-3247-42D9-84B7-533C96ECB28A}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0312EB93-3247-42D9-84B7-533C96ECB28A}.Debug|x64.Build.0 = Debug|Any CPU
+		{0312EB93-3247-42D9-84B7-533C96ECB28A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{0312EB93-3247-42D9-84B7-533C96ECB28A}.Debug|x86.Build.0 = Debug|Any CPU
+		{0312EB93-3247-42D9-84B7-533C96ECB28A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0312EB93-3247-42D9-84B7-533C96ECB28A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0312EB93-3247-42D9-84B7-533C96ECB28A}.Release|x64.ActiveCfg = Release|Any CPU
+		{0312EB93-3247-42D9-84B7-533C96ECB28A}.Release|x64.Build.0 = Release|Any CPU
+		{0312EB93-3247-42D9-84B7-533C96ECB28A}.Release|x86.ActiveCfg = Release|Any CPU
+		{0312EB93-3247-42D9-84B7-533C96ECB28A}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -635,5 +649,6 @@ Global
 		{C013138C-1B0A-4FFC-A22C-580588CDF4B8} = {B69D1A96-4DB9-15C1-EF8D-9A36E3A47E08}
 		{AC81A349-619C-4403-BBD1-4F99DCABFAB2} = {B69D1A96-4DB9-15C1-EF8D-9A36E3A47E08}
 		{483C2F3F-9B76-4FCD-90E6-5EA811890CD3} = {82ED2FE6-1ECB-85AE-51B5-08737E464980}
+		{0312EB93-3247-42D9-84B7-533C96ECB28A} = {B69D1A96-4DB9-15C1-EF8D-9A36E3A47E08}
 	EndGlobalSection
 EndGlobal

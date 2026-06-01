@@ -1,6 +1,8 @@
 using MediatR;
+using Marketplace.Contracts.Inventory.V1;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Order.Application.Abstractions.Messaging;
 using Order.Application.Abstractions.Persistence;
 using Order.Application.Abstractions.Services;
 using Order.Application.Common.Exceptions;
@@ -16,6 +18,7 @@ public class CreateCheckoutHandler(
     ICatalogPurchaseInfoClient catalogPurchaseInfoClient,
     IInventoryReservationClient inventoryReservationClient,
     IPaymentClient paymentClient,
+    IStockReservationRollbackPublisher stockReservationRollbackPublisher,
     ILogger<CreateCheckoutHandler> logger) : IRequestHandler<CreateCheckoutCommand, CheckoutResultDto>
 {
     private static readonly TimeSpan ReservationTtl = TimeSpan.FromMinutes(15);
@@ -206,24 +209,25 @@ public class CreateCheckoutHandler(
         IReadOnlyCollection<CreateCheckoutItem> reservedItems,
         CancellationToken cancellationToken)
     {
-        foreach (var reservedItem in reservedItems)
+        if (reservedItems.Count == 0)
         {
-            try
-            {
-                await inventoryReservationClient.ReleaseAsync(
-                    reservedItem.ProductId,
-                    reservedItem.Sku,
-                    orderId,
-                    cancellationToken);
-            }
-            catch
-            {
-                logger.LogWarning(
-                    "Failed to release reservation for order {OrderId}, product {ProductId}, sku {Sku} during checkout rollback.",
-                    orderId,
-                    reservedItem.ProductId,
-                    reservedItem.Sku);
-            }
+            return;
+        }
+
+        try
+        {
+            await stockReservationRollbackPublisher.PublishReleaseImmediatelyAsync(
+                orderId,
+                reservedItems
+                    .Select(item => new StockReservationItem(item.ProductId, item.Sku))
+                    .ToList(),
+                cancellationToken);
+        }
+        catch
+        {
+            logger.LogWarning(
+                "Failed to publish stock release rollback request for order {OrderId}.",
+                orderId);
         }
     }
 

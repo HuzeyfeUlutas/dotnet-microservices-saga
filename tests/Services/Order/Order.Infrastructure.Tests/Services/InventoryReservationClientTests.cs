@@ -35,7 +35,6 @@ public class InventoryReservationClientTests
             Response = response
         };
         var client = new InventoryReservationClient(
-            new HttpClient(),
             grpcClient,
             new ServiceEndpointOptions
             {
@@ -63,7 +62,6 @@ public class InventoryReservationClientTests
             Exception = new RpcException(new Status(StatusCode.FailedPrecondition, "Insufficient stock."))
         };
         var client = new InventoryReservationClient(
-            new HttpClient(),
             grpcClient,
             new ServiceEndpointOptions
             {

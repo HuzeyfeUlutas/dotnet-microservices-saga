@@ -21,6 +21,7 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddScoped<IIntegrationEventPublisher, MassTransitIntegrationEventPublisher>();
+        services.AddScoped<IStockReservationRollbackPublisher, MassTransitStockReservationRollbackPublisher>();
 
         var serviceEndpointOptions = BuildServiceEndpointOptions(configuration);
         services.AddSingleton(serviceEndpointOptions);
@@ -35,10 +36,7 @@ public static class DependencyInjection
         {
             client.Address = new Uri(serviceEndpointOptions.InventoryGrpcUrl);
         });
-        services.AddHttpClient<IInventoryReservationClient, InventoryReservationClient>((provider, client) =>
-        {
-            client.BaseAddress = new Uri(serviceEndpointOptions.InventoryBaseUrl);
-        }).AddHttpMessageHandler(provider => new CorrelationPropagationHandler(provider.GetRequiredService<ICorrelationContextAccessor>()));
+        services.AddScoped<IInventoryReservationClient, InventoryReservationClient>();
 
         services.AddGrpcClient<PaymentInitiation.PaymentInitiationClient>(client =>
         {
@@ -53,11 +51,20 @@ public static class DependencyInjection
             x.AddConsumer<PaymentAuthorizationFailedConsumer>();
             x.AddConsumer<PaymentCapturedConsumer>();
             x.AddConsumer<PaymentCaptureFailedConsumer>();
+            x.AddConsumer<StockCommittedConsumer>();
+            x.AddConsumer<StockCommitFailedConsumer>();
+            x.AddConsumer<StockReleasedConsumer>();
+            x.AddConsumer<StockReleaseFailedConsumer>();
 
             x.AddEntityFrameworkOutbox<OrderDbContext>(o =>
             {
                 o.UsePostgres();
                 o.UseBusOutbox();
+            });
+
+            x.AddConfigureEndpointsCallback((context, _, cfg) =>
+            {
+                cfg.UseEntityFrameworkOutbox<OrderDbContext>(context);
             });
 
             x.UsingRabbitMq((context, cfg) =>
@@ -108,7 +115,6 @@ public static class DependencyInjection
             InventoryGrpcTimeoutSeconds = int.TryParse(section["InventoryGrpcTimeoutSeconds"], out var inventoryTimeoutSeconds)
                 ? inventoryTimeoutSeconds
                 : 3,
-            InventoryBaseUrl = section["InventoryBaseUrl"] ?? "http://localhost:5273",
             PaymentGrpcUrl = section["PaymentGrpcUrl"] ?? "http://localhost:5285",
             PaymentGrpcTimeoutSeconds = int.TryParse(section["PaymentGrpcTimeoutSeconds"], out var paymentTimeoutSeconds)
                 ? paymentTimeoutSeconds

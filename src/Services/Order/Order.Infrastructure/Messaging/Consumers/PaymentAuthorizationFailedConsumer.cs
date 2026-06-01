@@ -1,10 +1,9 @@
 using MassTransit;
+using Marketplace.Contracts.Inventory.V1;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Order.Application.Abstractions.Messaging;
-using Order.Application.Contracts.IntegrationEvents;
-using Order.Application.Abstractions.Services;
 using Order.Domain.Enums;
+using Order.Infrastructure.Messaging;
 using Order.Persistence.Context;
 using Order.Persistence.Sagas;
 using Payment.Application.Contracts.IntegrationEvents;
@@ -13,8 +12,7 @@ namespace Order.Infrastructure.Messaging.Consumers;
 
 public sealed class PaymentAuthorizationFailedConsumer(
     OrderDbContext context,
-    IIntegrationEventPublisher integrationEventPublisher,
-    IInventoryReservationClient inventoryReservationClient,
+    IPublishEndpoint publishEndpoint,
     ILogger<PaymentAuthorizationFailedConsumer> logger) : IConsumer<PaymentAuthorizationFailed>
 {
     public async Task Consume(ConsumeContext<PaymentAuthorizationFailed> consumeContext)
@@ -40,7 +38,7 @@ public sealed class PaymentAuthorizationFailedConsumer(
         var sagaState = await GetOrCreateSagaStateAsync(order.Id, message.PaymentId, consumeContext.CancellationToken);
 
         if (sagaState.LastProcessedEventId == message.EventId ||
-            sagaState.CurrentState is OrderCheckoutSagaStatus.PaymentFailed or OrderCheckoutSagaStatus.Completed or OrderCheckoutSagaStatus.CaptureRequested or OrderCheckoutSagaStatus.Failed)
+            sagaState.CurrentState is not OrderCheckoutSagaStatus.WaitingForPayment)
         {
             return;
         }
@@ -51,36 +49,19 @@ public sealed class PaymentAuthorizationFailedConsumer(
             return;
         }
 
-        foreach (var line in order.Lines)
-        {
-            await inventoryReservationClient.ReleaseAsync(
-                line.ProductId,
-                line.Sku,
-                order.Id,
-                consumeContext.CancellationToken);
-        }
-
-        order.MarkPaymentAsFailed(message.FailureReason);
-
-        sagaState.PaymentId = message.PaymentId;
-        sagaState.CurrentState = OrderCheckoutSagaStatus.PaymentFailed;
-        sagaState.LastProcessedEventId = message.EventId;
-        sagaState.FailureReason = message.FailureReason;
-        sagaState.CompletedAtUtc = DateTime.UtcNow;
-        sagaState.UpdatedAtUtc = DateTime.UtcNow;
-
-        await integrationEventPublisher.PublishAsync(
-            new OrderPaymentFailed(
+        await publishEndpoint.Publish(
+            new ReleaseStockRequested(
                 Guid.NewGuid(),
-                order.Id,
-                order.BuyerId,
-                message.PaymentId,
-                order.TotalAmount,
-                order.Currency,
-                message.FailureReason,
-                order.Lines.ToIntegrationItems(),
+                message.OrderId,
+                order.Lines.ToStockReservationItems(),
                 DateTime.UtcNow),
             consumeContext.CancellationToken);
+
+        sagaState.PaymentId = message.PaymentId;
+        sagaState.CurrentState = OrderCheckoutSagaStatus.StockReleaseRequestedAfterPaymentFailure;
+        sagaState.LastProcessedEventId = message.EventId;
+        sagaState.FailureReason = message.FailureReason;
+        sagaState.UpdatedAtUtc = DateTime.UtcNow;
 
         await context.SaveChangesAsync(consumeContext.CancellationToken);
     }
