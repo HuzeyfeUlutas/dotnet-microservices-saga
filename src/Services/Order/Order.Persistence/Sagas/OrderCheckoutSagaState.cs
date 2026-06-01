@@ -1,6 +1,8 @@
+using MassTransit;
+
 namespace Order.Persistence.Sagas;
 
-public class OrderCheckoutSagaState
+public class OrderCheckoutSagaState : SagaStateMachineInstance
 {
     public Guid CorrelationId { get; set; }
     public Guid OrderId { get; set; }

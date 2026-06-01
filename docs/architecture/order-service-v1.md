@@ -341,6 +341,12 @@ Target implementation:
 
 The saga coordinates the flow but does not take ownership away from `Payment` or `Inventory`.
 
+Migration note:
+
+- `OrderCheckoutSagaState` implements `SagaStateMachineInstance`
+- the state machine type and existing result-event correlations are defined in `Order.Infrastructure`
+- the consumer-based bridge remains active until state-machine behaviors are migrated and the saga endpoint can replace it without duplicate orchestration
+
 Responsibilities:
 
 - react to payment result events
