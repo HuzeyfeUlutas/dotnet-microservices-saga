@@ -313,10 +313,7 @@ Reason:
 
 `Cancelled` is intentionally not part of the v1 behavior.
 
-Reason:
-
-- there is no customer cancel use case in the first vertical slice
-- introducing `Cancelled` now would imply state transitions, APIs, and compensation behavior that are not yet implemented
+Payment timeout cancellation is an internal saga compensation operation. It does not introduce a customer-facing cancellation API.
 
 State guidance:
 
@@ -328,6 +325,7 @@ State guidance:
 The state machine migration adds:
 
 - `ManualReviewRequired`: one or more compensation steps could not be resolved automatically
+- scheduled creation of `PaymentTimeoutExpired`
 
 ## Saga Boundary
 

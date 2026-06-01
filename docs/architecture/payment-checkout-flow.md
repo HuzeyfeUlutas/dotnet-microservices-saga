@@ -198,8 +198,9 @@ Capture failure path:
 ```text
 PaymentCaptureFailed
 -> ReverseCommittedStockRequested
+-> CommittedStockReversed
 -> VoidPaymentAuthorizationRequested
--> CommittedStockReversed + PaymentAuthorizationVoided
+-> PaymentAuthorizationVoided
 -> OrderFailed
 ```
 
@@ -208,8 +209,9 @@ Stock commit failure path:
 ```text
 StockCommitFailed
 -> ReleaseStockRequested
+-> StockReleased
 -> VoidPaymentAuthorizationRequested
--> StockReleased + PaymentAuthorizationVoided
+-> PaymentAuthorizationVoided
 -> OrderFailed
 ```
 
@@ -218,12 +220,15 @@ Payment timeout path:
 ```text
 PaymentTimeoutExpired
 -> CancelPendingPaymentRequested
+-> PaymentCancelled
 -> ReleaseStockRequested
--> PaymentCancelled + StockReleased
+-> StockReleased
 -> OrderPaymentFailed
 ```
 
 If any compensation cannot be resolved automatically, the saga must move to `ManualReviewRequired`.
+
+The consumer-based runtime currently applies these continuation steps sequentially. Scheduled creation of `PaymentTimeoutExpired` remains part of the persisted MassTransit state machine migration.
 
 Do not silently confirm an order unless stock and payment invariants are satisfied.
 

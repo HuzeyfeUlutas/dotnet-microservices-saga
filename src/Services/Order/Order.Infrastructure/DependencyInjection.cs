@@ -57,6 +57,10 @@ public static class DependencyInjection
             x.AddConsumer<StockReleaseFailedConsumer>();
             x.AddConsumer<CommittedStockReversedConsumer>();
             x.AddConsumer<CommittedStockReverseFailedConsumer>();
+            x.AddConsumer<PaymentAuthorizationVoidedConsumer>();
+            x.AddConsumer<PaymentAuthorizationVoidFailedConsumer>();
+            x.AddConsumer<PaymentCancelledConsumer>();
+            x.AddConsumer<PaymentCancellationFailedConsumer>();
 
             x.AddEntityFrameworkOutbox<OrderDbContext>(o =>
             {

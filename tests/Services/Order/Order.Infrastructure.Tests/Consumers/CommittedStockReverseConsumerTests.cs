@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Marketplace.Contracts.Inventory.V1;
+using Marketplace.Contracts.Payment.V1;
 using MassTransit;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -20,8 +21,10 @@ public class CommittedStockReverseConsumerTests
         var orderId = Guid.NewGuid();
         context.OrderCheckoutSagaStates.Add(CreateSagaState(orderId));
         await context.SaveChangesAsync();
+        var publishEndpoint = Substitute.For<IPublishEndpoint>();
         var consumer = new CommittedStockReversedConsumer(
             context,
+            publishEndpoint,
             NullLogger<CommittedStockReversedConsumer>.Instance);
         var consumeContext = Substitute.For<ConsumeContext<CommittedStockReversed>>();
         consumeContext.Message.Returns(
@@ -30,8 +33,13 @@ public class CommittedStockReverseConsumerTests
 
         await consumer.Consume(consumeContext);
 
+        await publishEndpoint.Received(1).Publish(
+            Arg.Is<VoidPaymentAuthorizationRequested>(message =>
+                message.OrderId == orderId &&
+                message.PaymentId == context.OrderCheckoutSagaStates.Single().PaymentId),
+            CancellationToken.None);
         context.OrderCheckoutSagaStates.Single().CurrentState.Should()
-            .Be(OrderCheckoutSagaStatus.StockReversedAfterPaymentCaptureFailure);
+            .Be(OrderCheckoutSagaStatus.AuthorizationVoidRequestedAfterPaymentCaptureFailure);
     }
 
     [Fact]

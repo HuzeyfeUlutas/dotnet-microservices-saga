@@ -144,12 +144,16 @@ When payment capture fails after stock was committed:
 ```text
 PaymentCaptureFailed
 -> ReverseCommittedStockRequested
+-> CommittedStockReversed
 -> VoidPaymentAuthorizationRequested
+-> PaymentAuthorizationVoided
 -> OrderFailed when both compensations succeed
 -> ManualReviewRequired when any compensation remains unresolved
 ```
 
 Do not issue a refund when no payment was captured.
+
+The current consumer-based bridge executes compensation steps sequentially. The persisted MassTransit state machine migration will own the same transitions and schedule payment timeout handling.
 
 ## Contract Ownership
 

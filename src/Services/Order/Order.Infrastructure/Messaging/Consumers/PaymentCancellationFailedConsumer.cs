@@ -1,4 +1,4 @@
-using Marketplace.Contracts.Inventory.V1;
+using Marketplace.Contracts.Payment.V1;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -7,11 +7,11 @@ using Order.Persistence.Sagas;
 
 namespace Order.Infrastructure.Messaging.Consumers;
 
-public sealed class StockReleaseFailedConsumer(
+public sealed class PaymentCancellationFailedConsumer(
     OrderDbContext context,
-    ILogger<StockReleaseFailedConsumer> logger) : IConsumer<StockReleaseFailed>
+    ILogger<PaymentCancellationFailedConsumer> logger) : IConsumer<PaymentCancellationFailed>
 {
-    public async Task Consume(ConsumeContext<StockReleaseFailed> consumeContext)
+    public async Task Consume(ConsumeContext<PaymentCancellationFailed> consumeContext)
     {
         var message = consumeContext.Message;
         var sagaState = await context.OrderCheckoutSagaStates
@@ -19,15 +19,12 @@ public sealed class StockReleaseFailedConsumer(
 
         if (sagaState is null)
         {
-            logger.LogWarning("Order saga state {OrderId} was not found while handling stock release failed event {EventId}", message.OrderId, message.EventId);
+            logger.LogWarning("Order saga state {OrderId} was not found while handling payment cancellation failed event {EventId}", message.OrderId, message.EventId);
             return;
         }
 
         if (sagaState.LastProcessedEventId == message.EventId ||
-            sagaState.CurrentState is not (
-                OrderCheckoutSagaStatus.StockReleaseRequestedAfterPaymentFailure or
-                OrderCheckoutSagaStatus.StockReleaseRequestedAfterStockCommitFailure or
-                OrderCheckoutSagaStatus.StockReleaseRequestedAfterPaymentTimeout))
+            sagaState.CurrentState != OrderCheckoutSagaStatus.PendingPaymentCancellationRequestedAfterTimeout)
         {
             return;
         }

@@ -1,4 +1,5 @@
 using Marketplace.Contracts.Inventory.V1;
+using Marketplace.Contracts.Payment.V1;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -11,6 +12,7 @@ namespace Order.Infrastructure.Messaging.Consumers;
 
 public sealed class StockReleasedConsumer(
     OrderDbContext context,
+    IPublishEndpoint publishEndpoint,
     IIntegrationEventPublisher integrationEventPublisher,
     ILogger<StockReleasedConsumer> logger) : IConsumer<StockReleased>
 {
@@ -36,19 +38,30 @@ public sealed class StockReleasedConsumer(
 
         if (sagaState.CurrentState == OrderCheckoutSagaStatus.StockReleaseRequestedAfterStockCommitFailure)
         {
-            sagaState.CurrentState = OrderCheckoutSagaStatus.StockReleasedAfterStockCommitFailure;
+            await publishEndpoint.Publish(
+                new VoidPaymentAuthorizationRequested(
+                    Guid.NewGuid(),
+                    sagaState.PaymentId,
+                    message.OrderId,
+                    sagaState.FailureReason,
+                    DateTime.UtcNow),
+                consumeContext.CancellationToken);
+
+            sagaState.CurrentState = OrderCheckoutSagaStatus.AuthorizationVoidRequestedAfterStockCommitFailure;
             sagaState.LastProcessedEventId = message.EventId;
             sagaState.UpdatedAtUtc = DateTime.UtcNow;
             await context.SaveChangesAsync(consumeContext.CancellationToken);
             return;
         }
 
-        if (sagaState.CurrentState != OrderCheckoutSagaStatus.StockReleaseRequestedAfterPaymentFailure)
+        if (sagaState.CurrentState is not (
+                OrderCheckoutSagaStatus.StockReleaseRequestedAfterPaymentFailure or
+                OrderCheckoutSagaStatus.StockReleaseRequestedAfterPaymentTimeout))
         {
             return;
         }
 
-        var failureReason = sagaState.FailureReason ?? "Payment authorization failed.";
+        var failureReason = sagaState.FailureReason ?? "Payment authorization failed or timed out.";
         order.MarkPaymentAsFailed(failureReason);
 
         sagaState.CurrentState = OrderCheckoutSagaStatus.PaymentFailed;
