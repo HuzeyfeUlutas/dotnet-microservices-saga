@@ -7,6 +7,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Grpc.AspNetCore" Version="2.80.0" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.6" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.4">
             <PrivateAssets>all</PrivateAssets>
@@ -19,6 +20,10 @@
         <ProjectReference Include="..\Payment.Application\Payment.Application.csproj" />
         <ProjectReference Include="..\Payment.Infrastructure\Payment.Infrastructure.csproj" />
         <ProjectReference Include="..\Payment.Persistence\Payment.Persistence.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Protobuf Include="Grpc\Protos\payment_initiation.proto" GrpcServices="Server" />
     </ItemGroup>
 
 </Project>

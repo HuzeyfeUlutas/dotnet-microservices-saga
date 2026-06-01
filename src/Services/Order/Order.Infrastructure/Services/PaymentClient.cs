@@ -1,11 +1,15 @@
-using System.Net;
-using System.Net.Http.Json;
+using System.Globalization;
+using Grpc.Core;
+using Marketplace.Grpc.Payment.V1;
 using Order.Application.Abstractions.Services;
 using Order.Application.Common.Exceptions;
+using Order.Infrastructure.Configuration;
 
 namespace Order.Infrastructure.Services;
 
-internal sealed class PaymentClient(HttpClient httpClient) : IPaymentClient
+internal sealed class PaymentClient(
+    PaymentInitiation.PaymentInitiationClient grpcClient,
+    ServiceEndpointOptions options) : IPaymentClient
 {
     public async Task<PaymentInitiationResultDto> CreatePaymentAsync(
         Guid orderId,
@@ -16,51 +20,73 @@ internal sealed class PaymentClient(HttpClient httpClient) : IPaymentClient
         string method,
         CancellationToken cancellationToken = default)
     {
-        var response = await httpClient.PostAsJsonAsync(
-            "/api/payments",
-            new CreatePaymentRequest(
-                orderId,
-                amount,
-                currency,
-                idempotencyKey,
-                MapProvider(provider),
-                MapMethod(method)),
-            cancellationToken);
-
-        if (response.StatusCode == HttpStatusCode.Conflict)
+        try
         {
-            var conflictText = await response.Content.ReadAsStringAsync(cancellationToken);
-            throw new ConflictException($"Payment initiation failed. {conflictText}");
-        }
+            var response = await grpcClient.CreatePaymentAsync(
+                new CreatePaymentRequest
+                {
+                    OrderId = orderId.ToString(),
+                    Amount = amount.ToString(CultureInfo.InvariantCulture),
+                    Currency = currency,
+                    IdempotencyKey = idempotencyKey,
+                    Provider = MapProvider(provider),
+                    Method = MapMethod(method)
+                },
+                deadline: DateTime.UtcNow.AddSeconds(options.PaymentGrpcTimeoutSeconds),
+                cancellationToken: cancellationToken);
 
-        if (!response.IsSuccessStatusCode)
+            return MapResponse(response);
+        }
+        catch (RpcException exception) when (
+            exception.StatusCode is StatusCode.InvalidArgument or StatusCode.FailedPrecondition or StatusCode.Aborted)
         {
-            var responseText = await response.Content.ReadAsStringAsync(cancellationToken);
-            throw new IntegrationException($"Payment initiation request failed with status {(int)response.StatusCode}. {responseText}");
+            throw new ConflictException($"Payment initiation failed. {exception.Status.Detail}");
         }
-
-        var payload = await response.Content.ReadFromJsonAsync<CreatePaymentResponse>(cancellationToken: cancellationToken)
-                      ?? throw new IntegrationException("Payment initiation response was empty.");
-
-        return new PaymentInitiationResultDto(
-            payload.Payment.Id,
-            MapPaymentStatus(payload.Payment.Status),
-            MapPaymentProvider(payload.Payment.Provider),
-            new PaymentActionDto(
-                payload.Action.Type,
-                payload.Action.RedirectUrl,
-                payload.Action.ClientSecret,
-                payload.Action.HtmlContent));
+        catch (RpcException exception)
+        {
+            throw new IntegrationException($"Payment initiation gRPC request failed with status '{exception.StatusCode}'. {exception.Status.Detail}");
+        }
     }
 
     private static int MapProvider(string provider)
     {
-        return provider.Trim().Equals("Fake", StringComparison.OrdinalIgnoreCase) ? 1 : 1;
+        if (provider.Trim().Equals("Fake", StringComparison.OrdinalIgnoreCase))
+        {
+            return 1;
+        }
+
+        throw new ConflictException($"Payment provider '{provider}' is not supported.");
     }
 
     private static int MapMethod(string method)
     {
-        return method.Trim().Equals("Card", StringComparison.OrdinalIgnoreCase) ? 1 : 1;
+        if (method.Trim().Equals("Card", StringComparison.OrdinalIgnoreCase))
+        {
+            return 1;
+        }
+
+        throw new ConflictException($"Payment method '{method}' is not supported.");
+    }
+
+    private static PaymentInitiationResultDto MapResponse(CreatePaymentResponse response)
+    {
+        if (!Guid.TryParse(response.PaymentId, out var paymentId))
+        {
+            throw new IntegrationException("Payment initiation gRPC response contained invalid data.");
+        }
+
+        var action = response.Action
+                     ?? throw new IntegrationException("Payment initiation gRPC response did not contain an action.");
+
+        return new PaymentInitiationResultDto(
+            paymentId,
+            MapPaymentStatus(response.Status),
+            MapPaymentProvider(response.Provider),
+            new PaymentActionDto(
+                action.Type,
+                NullIfEmpty(action.RedirectUrl),
+                NullIfEmpty(action.ClientSecret),
+                NullIfEmpty(action.HtmlContent)));
     }
 
     private static string MapPaymentStatus(int status)
@@ -76,7 +102,7 @@ internal sealed class PaymentClient(HttpClient httpClient) : IPaymentClient
             7 => "Refunded",
             8 => "RefundFailed",
             9 => "Cancelled",
-            _ => status.ToString()
+            _ => status.ToString(CultureInfo.InvariantCulture)
         };
     }
 
@@ -85,40 +111,12 @@ internal sealed class PaymentClient(HttpClient httpClient) : IPaymentClient
         return provider switch
         {
             1 => "Fake",
-            _ => provider.ToString()
+            _ => provider.ToString(CultureInfo.InvariantCulture)
         };
     }
 
-    private sealed record CreatePaymentRequest(
-        Guid OrderId,
-        decimal Amount,
-        string Currency,
-        string IdempotencyKey,
-        int Provider,
-        int Method);
-
-    private sealed record CreatePaymentResponse(
-        PaymentPayload Payment,
-        PaymentActionPayload Action);
-
-    private sealed record PaymentPayload(
-        Guid Id,
-        Guid OrderId,
-        decimal Amount,
-        string Currency,
-        int Provider,
-        int Method,
-        int Status,
-        string IdempotencyKey,
-        DateTime CreatedAtUtc,
-        DateTime? AuthorizedAtUtc,
-        DateTime? CapturedAtUtc,
-        DateTime? RefundedAtUtc,
-        string? FailureReason);
-
-    private sealed record PaymentActionPayload(
-        string Type,
-        string? RedirectUrl,
-        string? ClientSecret,
-        string? HtmlContent);
+    private static string? NullIfEmpty(string value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
 }

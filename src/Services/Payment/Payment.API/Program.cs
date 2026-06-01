@@ -1,4 +1,5 @@
 using Payment.API.ExceptionHandlers;
+using Payment.API.Grpc.Services;
 using Payment.API.Middlewares;
 using Payment.API.Observability;
 using Payment.Application;
@@ -19,6 +20,7 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
 builder.Services.AddControllers();
+builder.Services.AddGrpc();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -65,5 +67,6 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 });
 
 app.MapControllers();
+app.MapGrpcService<PaymentInitiationGrpcService>();
 
 app.Run();

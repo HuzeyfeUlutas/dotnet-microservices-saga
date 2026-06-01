@@ -1,7 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Payment.API.Contracts.Payments;
-using Payment.Application.Features.Payments.CreatePayment;
 using Payment.Application.Features.Payments.GetPaymentStatus;
 using Payment.Application.Features.Payments.HandleProviderCallback;
 
@@ -11,22 +10,6 @@ namespace Payment.API.Controllers;
 [Route("api/payments")]
 public class PaymentsController(ISender sender) : ControllerBase
 {
-    [HttpPost]
-    public async Task<IActionResult> Create(CreatePaymentRequest request, CancellationToken cancellationToken)
-    {
-        var result = await sender.Send(
-            new CreatePaymentCommand(
-                request.OrderId,
-                request.Amount,
-                request.Currency,
-                request.IdempotencyKey,
-                request.Provider,
-                request.Method),
-            cancellationToken);
-
-        return CreatedAtAction(nameof(GetStatus), new { id = result.Payment.Id }, result);
-    }
-
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetStatus(Guid id, CancellationToken cancellationToken)
     {

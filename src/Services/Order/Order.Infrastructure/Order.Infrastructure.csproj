@@ -39,6 +39,7 @@
     <ItemGroup>
         <Protobuf Include="Grpc\Protos\catalog_purchase_info.proto" GrpcServices="Client" />
         <Protobuf Include="Grpc\Protos\inventory_reservation.proto" GrpcServices="Client" />
+        <Protobuf Include="Grpc\Protos\payment_initiation.proto" GrpcServices="Client" />
     </ItemGroup>
 
 </Project>

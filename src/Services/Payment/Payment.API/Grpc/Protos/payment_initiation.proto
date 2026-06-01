@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+option csharp_namespace = "Marketplace.Grpc.Payment.V1";
+
+package marketplace.payment.v1;
+
+service PaymentInitiation {
+  rpc CreatePayment (CreatePaymentRequest) returns (CreatePaymentResponse);
+}
+
+message CreatePaymentRequest {
+  string order_id = 1;
+  string amount = 2;
+  string currency = 3;
+  string idempotency_key = 4;
+  int32 provider = 5;
+  int32 method = 6;
+}
+
+message CreatePaymentResponse {
+  string payment_id = 1;
+  int32 status = 2;
+  int32 provider = 3;
+  PaymentAction action = 4;
+}
+
+message PaymentAction {
+  string type = 1;
+  string redirect_url = 2;
+  string client_secret = 3;
+  string html_content = 4;
+}

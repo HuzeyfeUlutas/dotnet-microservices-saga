@@ -12,6 +12,7 @@ using Order.Infrastructure.Observability;
 using Order.Persistence.Context;
 using Marketplace.Grpc.Catalog.V1;
 using Marketplace.Grpc.Inventory.V1;
+using Marketplace.Grpc.Payment.V1;
 
 namespace Order.Infrastructure;
 
@@ -39,10 +40,11 @@ public static class DependencyInjection
             client.BaseAddress = new Uri(serviceEndpointOptions.InventoryBaseUrl);
         }).AddHttpMessageHandler(provider => new CorrelationPropagationHandler(provider.GetRequiredService<ICorrelationContextAccessor>()));
 
-        services.AddHttpClient<IPaymentClient, PaymentClient>((provider, client) =>
+        services.AddGrpcClient<PaymentInitiation.PaymentInitiationClient>(client =>
         {
-            client.BaseAddress = new Uri(serviceEndpointOptions.PaymentBaseUrl);
-        }).AddHttpMessageHandler(provider => new CorrelationPropagationHandler(provider.GetRequiredService<ICorrelationContextAccessor>()));
+            client.Address = new Uri(serviceEndpointOptions.PaymentGrpcUrl);
+        });
+        services.AddScoped<IPaymentClient, PaymentClient>();
 
         services.AddMassTransit(x =>
         {
@@ -107,7 +109,10 @@ public static class DependencyInjection
                 ? inventoryTimeoutSeconds
                 : 3,
             InventoryBaseUrl = section["InventoryBaseUrl"] ?? "http://localhost:5273",
-            PaymentBaseUrl = section["PaymentBaseUrl"] ?? "http://localhost:5285"
+            PaymentGrpcUrl = section["PaymentGrpcUrl"] ?? "http://localhost:5285",
+            PaymentGrpcTimeoutSeconds = int.TryParse(section["PaymentGrpcTimeoutSeconds"], out var paymentTimeoutSeconds)
+                ? paymentTimeoutSeconds
+                : 3
         };
     }
 }

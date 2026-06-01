@@ -104,6 +104,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Inventory.Application.Tests
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Inventory.API.Tests", "tests\Services\Inventory\Inventory.API.Tests\Inventory.API.Tests.csproj", "{AC81A349-619C-4403-BBD1-4F99DCABFAB2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Payment.API.Tests", "tests\Services\Payment\Payment.API.Tests\Payment.API.Tests.csproj", "{483C2F3F-9B76-4FCD-90E6-5EA811890CD3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -570,6 +572,18 @@ Global
 		{AC81A349-619C-4403-BBD1-4F99DCABFAB2}.Release|x64.Build.0 = Release|Any CPU
 		{AC81A349-619C-4403-BBD1-4F99DCABFAB2}.Release|x86.ActiveCfg = Release|Any CPU
 		{AC81A349-619C-4403-BBD1-4F99DCABFAB2}.Release|x86.Build.0 = Release|Any CPU
+		{483C2F3F-9B76-4FCD-90E6-5EA811890CD3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{483C2F3F-9B76-4FCD-90E6-5EA811890CD3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{483C2F3F-9B76-4FCD-90E6-5EA811890CD3}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{483C2F3F-9B76-4FCD-90E6-5EA811890CD3}.Debug|x64.Build.0 = Debug|Any CPU
+		{483C2F3F-9B76-4FCD-90E6-5EA811890CD3}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{483C2F3F-9B76-4FCD-90E6-5EA811890CD3}.Debug|x86.Build.0 = Debug|Any CPU
+		{483C2F3F-9B76-4FCD-90E6-5EA811890CD3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{483C2F3F-9B76-4FCD-90E6-5EA811890CD3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{483C2F3F-9B76-4FCD-90E6-5EA811890CD3}.Release|x64.ActiveCfg = Release|Any CPU
+		{483C2F3F-9B76-4FCD-90E6-5EA811890CD3}.Release|x64.Build.0 = Release|Any CPU
+		{483C2F3F-9B76-4FCD-90E6-5EA811890CD3}.Release|x86.ActiveCfg = Release|Any CPU
+		{483C2F3F-9B76-4FCD-90E6-5EA811890CD3}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -620,5 +634,6 @@ Global
 		{8CA9F3B3-54A3-40A3-878D-5A1F9EC12DE4} = {C5ADB2C2-D5AC-61D9-C060-9FACC8AEA64C}
 		{C013138C-1B0A-4FFC-A22C-580588CDF4B8} = {B69D1A96-4DB9-15C1-EF8D-9A36E3A47E08}
 		{AC81A349-619C-4403-BBD1-4F99DCABFAB2} = {B69D1A96-4DB9-15C1-EF8D-9A36E3A47E08}
+		{483C2F3F-9B76-4FCD-90E6-5EA811890CD3} = {82ED2FE6-1ECB-85AE-51B5-08737E464980}
 	EndGlobalSection
 EndGlobal
