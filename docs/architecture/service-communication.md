@@ -153,7 +153,7 @@ PaymentCaptureFailed
 
 Do not issue a refund when no payment was captured.
 
-The persisted MassTransit state machine endpoint owns the successful checkout path plus payment authorization failure and stock commit failure branches. The consumer-based bridge still executes payment capture failure and timeout compensation steps sequentially until those behaviors can move into the state machine without duplicate orchestration. The completed migration will schedule payment timeout handling.
+The persisted MassTransit state machine endpoint owns the successful checkout path plus payment authorization failure, stock commit failure, and payment capture failure branches. The consumer-based bridge still executes timeout compensation steps sequentially until those behaviors can move into the state machine without duplicate orchestration. The completed migration will schedule payment timeout handling.
 
 ## Contract Ownership
 

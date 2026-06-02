@@ -54,17 +54,14 @@ public static class DependencyInjection
         services.AddScoped<FailOrderPaymentAfterStockReleaseActivity>();
         services.AddScoped<RequestAuthorizationVoidAfterStockReleaseActivity>();
         services.AddScoped<FailOrderAfterAuthorizationVoidActivity>();
+        services.AddScoped<RequestCommittedStockReverseAfterPaymentCaptureFailureActivity>();
+        services.AddScoped<RequestAuthorizationVoidAfterCommittedStockReverseActivity>();
 
         services.AddMassTransit(x =>
         {
             x.SetKebabCaseEndpointNameFormatter();
-            x.AddConsumer<PaymentCaptureFailedConsumer>();
             x.AddConsumer<StockReleasedConsumer>();
             x.AddConsumer<StockReleaseFailedConsumer>();
-            x.AddConsumer<CommittedStockReversedConsumer>();
-            x.AddConsumer<CommittedStockReverseFailedConsumer>();
-            x.AddConsumer<PaymentAuthorizationVoidedConsumer>();
-            x.AddConsumer<PaymentAuthorizationVoidFailedConsumer>();
             x.AddConsumer<PaymentCancelledConsumer>();
             x.AddConsumer<PaymentCancellationFailedConsumer>();
             x.AddSagaStateMachine<OrderCheckoutStateMachine, OrderCheckoutSagaState>()

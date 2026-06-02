@@ -108,19 +108,31 @@ public sealed class OrderCheckoutStateMachine : MassTransitStateMachine<OrderChe
             Ignore(StockReleased),
             Ignore(StockReleaseFailed));
 
-        During(AuthorizationVoidRequestedAfterPaymentCaptureFailure,
-            Ignore(PaymentAuthorizationVoided),
-            Ignore(PaymentAuthorizationVoidFailed));
-
         During(CaptureRequested,
             When(PaymentCaptured)
                 .Activity(activity => activity.OfType<ConfirmOrderActivity>())
-                .TransitionTo(Completed));
+                .TransitionTo(Completed),
+            When(PaymentCaptureFailed)
+                .Activity(activity => activity.OfType<RequestCommittedStockReverseAfterPaymentCaptureFailureActivity>())
+                .TransitionTo(StockReverseRequestedAfterPaymentCaptureFailure));
+
+        During(StockReverseRequestedAfterPaymentCaptureFailure,
+            When(CommittedStockReversed)
+                .Activity(activity => activity.OfType<RequestAuthorizationVoidAfterCommittedStockReverseActivity>())
+                .TransitionTo(AuthorizationVoidRequestedAfterPaymentCaptureFailure),
+            When(CommittedStockReverseFailed)
+                .Then(context => MoveToManualReview(context.Saga, context.Message.EventId, context.Message.FailureReason))
+                .TransitionTo(ManualReviewRequired));
+
+        During(AuthorizationVoidRequestedAfterPaymentCaptureFailure,
+            When(PaymentAuthorizationVoided)
+                .Activity(activity => activity.OfType<FailOrderAfterAuthorizationVoidActivity>())
+                .TransitionTo(Failed),
+            When(PaymentAuthorizationVoidFailed)
+                .Then(context => MoveToManualReview(context.Saga, context.Message.EventId, context.Message.FailureReason))
+                .TransitionTo(ManualReviewRequired));
 
         DuringAny(
-            Ignore(PaymentCaptureFailed),
-            Ignore(CommittedStockReversed),
-            Ignore(CommittedStockReverseFailed),
             Ignore(PaymentCancelled),
             Ignore(PaymentCancellationFailed));
     }
