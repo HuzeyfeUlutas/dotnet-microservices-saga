@@ -112,6 +112,10 @@ Keep business rules in the owning service's Application and Domain layers. The s
 
 For RabbitMQ-backed delayed saga events, configure MassTransit's delayed message scheduler and run RabbitMQ with the delayed-exchange plug-in enabled. Keep scheduled-message token ids in the persisted saga state.
 
+The local compose runtime uses the pinned `masstransit/rabbitmq:3.13.1` image because it includes the management interface and the delayed-exchange plug-in. Its RabbitMQ health check must verify both broker availability and `rabbitmq_delayed_message_exchange` activation.
+
+The delayed-exchange plug-in is appropriate for the current 15-minute checkout timeout. Treat it as a bounded-delay mechanism, not as the default choice for long-term or very high-volume scheduling.
+
 ## Versioning Guidance
 
 - Pin `MassTransit` package versions explicitly.
