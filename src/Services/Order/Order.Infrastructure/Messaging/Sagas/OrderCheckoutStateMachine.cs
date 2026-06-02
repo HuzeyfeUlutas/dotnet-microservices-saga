@@ -10,6 +10,8 @@ namespace Order.Infrastructure.Messaging.Sagas;
 
 public sealed class OrderCheckoutStateMachine : MassTransitStateMachine<OrderCheckoutSagaState>
 {
+    private static readonly TimeSpan PaymentTimeoutDelay = TimeSpan.FromMinutes(15);
+
     public OrderCheckoutStateMachine()
     {
         InstanceState(x => x.CurrentState);
@@ -60,8 +62,22 @@ public sealed class OrderCheckoutStateMachine : MassTransitStateMachine<OrderChe
         ConfigureOrderCorrelation(() => PaymentCancelled, (sagaState, consumeContext) => sagaState.OrderId == consumeContext.Message.OrderId);
         ConfigureOrderCorrelation(() => PaymentCancellationFailed, (sagaState, consumeContext) => sagaState.OrderId == consumeContext.Message.OrderId);
 
+        Schedule(() => PaymentTimeout, sagaState => sagaState.PaymentTimeoutTokenId, configuration =>
+        {
+            configuration.Delay = PaymentTimeoutDelay;
+            configuration.Received = received => received.CorrelateById(context => context.Message.OrderId);
+        });
+
         Initially(
             When(OrderCheckoutStarted)
+                .Schedule(
+                    PaymentTimeout,
+                    context => context.Init<PaymentTimeoutExpired>(new
+                    {
+                        EventId = Guid.NewGuid(),
+                        context.Saga.OrderId,
+                        OccurredAtUtc = DateTime.UtcNow
+                    }))
                 .TransitionTo(WaitingForPayment));
 
         During(WaitingForPayment,
@@ -70,7 +86,10 @@ public sealed class OrderCheckoutStateMachine : MassTransitStateMachine<OrderChe
                 .TransitionTo(StockCommitRequested),
             When(PaymentAuthorizationFailed)
                 .Activity(activity => activity.OfType<RequestStockReleaseAfterPaymentFailureActivity>())
-                .TransitionTo(StockReleaseRequestedAfterPaymentFailure));
+                .TransitionTo(StockReleaseRequestedAfterPaymentFailure),
+            When(PaymentTimeout.Received)
+                .Activity(activity => activity.OfType<RequestPendingPaymentCancellationAfterTimeoutActivity>())
+                .TransitionTo(PendingPaymentCancellationRequestedAfterTimeout));
 
         During(StockCommitRequested,
             When(StockCommitted)
@@ -104,9 +123,21 @@ public sealed class OrderCheckoutStateMachine : MassTransitStateMachine<OrderChe
                 .Then(context => MoveToManualReview(context.Saga, context.Message.EventId, context.Message.FailureReason))
                 .TransitionTo(ManualReviewRequired));
 
+        During(PendingPaymentCancellationRequestedAfterTimeout,
+            When(PaymentCancelled)
+                .Activity(activity => activity.OfType<RequestStockReleaseAfterPaymentCancellationActivity>())
+                .TransitionTo(StockReleaseRequestedAfterPaymentTimeout),
+            When(PaymentCancellationFailed)
+                .Then(context => MoveToManualReview(context.Saga, context.Message.EventId, context.Message.FailureReason))
+                .TransitionTo(ManualReviewRequired));
+
         During(StockReleaseRequestedAfterPaymentTimeout,
-            Ignore(StockReleased),
-            Ignore(StockReleaseFailed));
+            When(StockReleased)
+                .Activity(activity => activity.OfType<FailOrderPaymentAfterStockReleaseActivity>())
+                .TransitionTo(PaymentFailed),
+            When(StockReleaseFailed)
+                .Then(context => MoveToManualReview(context.Saga, context.Message.EventId, context.Message.FailureReason))
+                .TransitionTo(ManualReviewRequired));
 
         During(CaptureRequested,
             When(PaymentCaptured)
@@ -132,9 +163,20 @@ public sealed class OrderCheckoutStateMachine : MassTransitStateMachine<OrderChe
                 .Then(context => MoveToManualReview(context.Saga, context.Message.EventId, context.Message.FailureReason))
                 .TransitionTo(ManualReviewRequired));
 
-        DuringAny(
-            Ignore(PaymentCancelled),
-            Ignore(PaymentCancellationFailed));
+        IgnorePaymentTimeoutIn(
+            StockCommitRequested,
+            StockReleaseRequestedAfterPaymentFailure,
+            StockReleaseRequestedAfterStockCommitFailure,
+            StockReverseRequestedAfterPaymentCaptureFailure,
+            AuthorizationVoidRequestedAfterStockCommitFailure,
+            AuthorizationVoidRequestedAfterPaymentCaptureFailure,
+            PendingPaymentCancellationRequestedAfterTimeout,
+            StockReleaseRequestedAfterPaymentTimeout,
+            CaptureRequested,
+            PaymentFailed,
+            Completed,
+            Failed,
+            ManualReviewRequired);
     }
 
     public State WaitingForPayment { get; private set; } = null!;
@@ -167,6 +209,7 @@ public sealed class OrderCheckoutStateMachine : MassTransitStateMachine<OrderChe
     public Event<PaymentAuthorizationVoidFailed> PaymentAuthorizationVoidFailed { get; private set; } = null!;
     public Event<PaymentCancelled> PaymentCancelled { get; private set; } = null!;
     public Event<PaymentCancellationFailed> PaymentCancellationFailed { get; private set; } = null!;
+    public Schedule<OrderCheckoutSagaState, PaymentTimeoutExpired> PaymentTimeout { get; private set; } = null!;
 
     private void ConfigureOrderCorrelation<TMessage>(
         Expression<Func<Event<TMessage>>> eventProperty,
@@ -178,6 +221,14 @@ public sealed class OrderCheckoutStateMachine : MassTransitStateMachine<OrderChe
             configuration.CorrelateBy(correlationExpression);
             configuration.OnMissingInstance(missing => missing.Discard());
         });
+    }
+
+    private void IgnorePaymentTimeoutIn(params State[] states)
+    {
+        foreach (var state in states)
+        {
+            During(state, Ignore(PaymentTimeout.Received));
+        }
     }
 
     private static void MoveToManualReview(

@@ -43,6 +43,6 @@ public class OrderCheckoutStateMachineTests
     {
         var stateMachine = new OrderCheckoutStateMachine();
 
-        stateMachine.Events.Should().HaveCount(15);
+        stateMachine.Events.Should().HaveCount(17);
     }
 }

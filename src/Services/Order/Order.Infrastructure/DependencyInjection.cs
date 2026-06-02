@@ -6,7 +6,6 @@ using Order.Application.Abstractions.Observability;
 using Order.Application.Abstractions.Services;
 using Order.Infrastructure.Configuration;
 using Order.Infrastructure.Messaging;
-using Order.Infrastructure.Messaging.Consumers;
 using Order.Infrastructure.Messaging.Sagas;
 using Order.Infrastructure.Messaging.Sagas.Activities;
 using Order.Infrastructure.Services;
@@ -56,14 +55,13 @@ public static class DependencyInjection
         services.AddScoped<FailOrderAfterAuthorizationVoidActivity>();
         services.AddScoped<RequestCommittedStockReverseAfterPaymentCaptureFailureActivity>();
         services.AddScoped<RequestAuthorizationVoidAfterCommittedStockReverseActivity>();
+        services.AddScoped<RequestPendingPaymentCancellationAfterTimeoutActivity>();
+        services.AddScoped<RequestStockReleaseAfterPaymentCancellationActivity>();
 
         services.AddMassTransit(x =>
         {
             x.SetKebabCaseEndpointNameFormatter();
-            x.AddConsumer<StockReleasedConsumer>();
-            x.AddConsumer<StockReleaseFailedConsumer>();
-            x.AddConsumer<PaymentCancelledConsumer>();
-            x.AddConsumer<PaymentCancellationFailedConsumer>();
+            x.AddDelayedMessageScheduler();
             x.AddSagaStateMachine<OrderCheckoutStateMachine, OrderCheckoutSagaState>()
                 .EntityFrameworkRepository(repository =>
                 {
@@ -93,6 +91,7 @@ public static class DependencyInjection
                     host.Password(options.Password);
                 });
 
+                cfg.UseDelayedMessageScheduler();
                 cfg.ConfigureEndpoints(context);
             });
         });

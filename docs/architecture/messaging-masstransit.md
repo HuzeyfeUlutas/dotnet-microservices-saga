@@ -110,6 +110,8 @@ Entity Framework saga repository
 
 Keep business rules in the owning service's Application and Domain layers. The saga coordinates commands and result events; it must not mutate another service's data or duplicate its business rules.
 
+For RabbitMQ-backed delayed saga events, configure MassTransit's delayed message scheduler and run RabbitMQ with the delayed-exchange plug-in enabled. Keep scheduled-message token ids in the persisted saga state.
+
 ## Versioning Guidance
 
 - Pin `MassTransit` package versions explicitly.

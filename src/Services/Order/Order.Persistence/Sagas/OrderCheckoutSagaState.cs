@@ -13,5 +13,6 @@ public class OrderCheckoutSagaState : SagaStateMachineInstance
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }
     public DateTime? CompletedAtUtc { get; set; }
+    public Guid? PaymentTimeoutTokenId { get; set; }
     public uint RowVersion { get; set; }
 }

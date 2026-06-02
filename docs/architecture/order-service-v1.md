@@ -325,7 +325,7 @@ State guidance:
 The state machine migration adds:
 
 - `ManualReviewRequired`: one or more compensation steps could not be resolved automatically
-- scheduled creation of `PaymentTimeoutExpired`
+- scheduled creation of `PaymentTimeoutExpired` after 15 minutes
 
 ## Saga Boundary
 
@@ -350,7 +350,8 @@ Migration note:
 - the state-machine endpoint is active with the Entity Framework saga repository
 - the successful path is owned by state-machine activities: `PaymentAuthorized -> CommitStockRequested -> StockCommitted -> CapturePaymentRequested -> PaymentCaptured -> OrderConfirmed`
 - payment authorization failure, stock commit failure, and payment capture failure branches are owned by state-machine activities, including stock release, committed-stock reverse, authorization void, and manual-review transitions
-- the payment timeout branch remains on the consumer-based bridge until its state-machine behavior replaces it without duplicate orchestration
+- the payment timeout branch is owned by the state machine: scheduled `PaymentTimeoutExpired -> CancelPendingPaymentRequested -> PaymentCancelled -> ReleaseStockRequested -> StockReleased -> OrderPaymentFailed`
+- the previous consumer-based orchestration bridge has been removed
 
 Responsibilities:
 

@@ -228,7 +228,7 @@ PaymentTimeoutExpired
 
 If any compensation cannot be resolved automatically, the saga must move to `ManualReviewRequired`.
 
-The persisted MassTransit state machine endpoint owns the successful checkout path plus payment authorization failure, stock commit failure, and payment capture failure branches. The consumer-based bridge currently applies only the timeout continuation steps sequentially. Scheduled creation of `PaymentTimeoutExpired` remains part of the state machine migration.
+The persisted MassTransit state machine endpoint owns the successful checkout path plus payment authorization failure, stock commit failure, payment capture failure, and scheduled payment timeout branches. The timeout branch schedules `PaymentTimeoutExpired` after 15 minutes and applies the continuation steps sequentially through state-machine activities. The previous consumer-based orchestration bridge has been removed.
 
 Do not silently confirm an order unless stock and payment invariants are satisfied.
 
