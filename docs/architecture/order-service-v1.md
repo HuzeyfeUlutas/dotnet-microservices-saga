@@ -18,6 +18,8 @@ checkout coordination -> persisted MassTransit state machine saga
 
 Follow `docs/architecture/service-communication.md` for the repository-wide protocol rules.
 
+The local compose runtime exposes `Order` HTTP traffic on host port `8084`, stores Order data in the service-owned PostgreSQL container exposed on host port `5436`, and routes synchronous checkout calls directly to the internal gRPC listeners of `Catalog`, `Inventory`, and `Payment`.
+
 ## Core Responsibility
 
 `Order` owns:

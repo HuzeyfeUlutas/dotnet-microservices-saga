@@ -1,0 +1,9 @@
+.git
+.idea
+.agents
+**/bin
+**/obj
+**/*.user
+docs
+docker
+tests

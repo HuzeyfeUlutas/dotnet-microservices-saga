@@ -71,6 +71,24 @@ services:
       retries: 5
       start_period: 10s
 
+  order-db:
+    image: postgres:16
+    container_name: order-db
+    environment:
+      POSTGRES_DB: orderdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5436:5432"
+    volumes:
+      - order-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d orderdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   rabbitmq:
     image: masstransit/rabbitmq:3.13.1
     container_name: rabbitmq
@@ -153,6 +171,8 @@ services:
         condition: service_started
       payment-api:
         condition: service_started
+      order-api:
+        condition: service_started
       otel-collector:
         condition: service_healthy
     ports:
@@ -204,7 +224,10 @@ services:
         condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ASPNETCORE_URLS: http://+:8080
+      Kestrel__Endpoints__Http__Url: http://+:8080
+      Kestrel__Endpoints__Http__Protocols: Http1
+      Kestrel__Endpoints__Grpc__Url: http://+:8081
+      Kestrel__Endpoints__Grpc__Protocols: Http2
       ConnectionStrings__CatalogDatabase: Host=catalog-db;Port=5432;Database=catalogdb;Username=postgres;Password=postgres
       RabbitMq__Host: rabbitmq
       RabbitMq__Port: 5672
@@ -232,7 +255,10 @@ services:
         condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ASPNETCORE_URLS: http://+:8080
+      Kestrel__Endpoints__Http__Url: http://+:8080
+      Kestrel__Endpoints__Http__Protocols: Http1
+      Kestrel__Endpoints__Grpc__Url: http://+:8081
+      Kestrel__Endpoints__Grpc__Protocols: Http2
       ConnectionStrings__InventoryDatabase: Host=inventory-db;Port=5432;Database=inventorydb;Username=postgres;Password=postgres
       RabbitMq__Host: rabbitmq
       RabbitMq__Port: 5672
@@ -288,7 +314,10 @@ services:
         condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ASPNETCORE_URLS: http://+:8080
+      Kestrel__Endpoints__Http__Url: http://+:8080
+      Kestrel__Endpoints__Http__Protocols: Http1
+      Kestrel__Endpoints__Grpc__Url: http://+:8081
+      Kestrel__Endpoints__Grpc__Protocols: Http2
       ConnectionStrings__PaymentDatabase: Host=payment-db;Port=5432;Database=paymentdb;Username=postgres;Password=postgres
       RabbitMq__Host: rabbitmq
       RabbitMq__Port: 5672
@@ -300,8 +329,49 @@ services:
     ports:
       - "8083:8080"
 
+  order-api:
+    build:
+      context: .
+      dockerfile: src/Services/Order/Order.API/Dockerfile
+    container_name: order-api
+    depends_on:
+      order-db:
+        condition: service_healthy
+      catalog-api:
+        condition: service_started
+      inventory-api:
+        condition: service_started
+      payment-api:
+        condition: service_started
+      elasticsearch:
+        condition: service_healthy
+      otel-collector:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__OrderDatabase: Host=order-db;Port=5432;Database=orderdb;Username=postgres;Password=postgres
+      ServiceEndpoints__CatalogGrpcUrl: http://catalog-api:8081
+      ServiceEndpoints__CatalogGrpcTimeoutSeconds: 3
+      ServiceEndpoints__InventoryGrpcUrl: http://inventory-api:8081
+      ServiceEndpoints__InventoryGrpcTimeoutSeconds: 3
+      ServiceEndpoints__PaymentGrpcUrl: http://payment-api:8081
+      ServiceEndpoints__PaymentGrpcTimeoutSeconds: 3
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__VirtualHost: /
+      RabbitMq__Username: guest
+      RabbitMq__Password: guest
+      ElasticSearch__Uri: http://elasticsearch:9200
+      OpenTelemetry__OtlpEndpoint: http://otel-collector:4317
+    ports:
+      - "8084:8080"
+
 volumes:
   catalog-postgres-data:
   inventory-postgres-data:
   notification-postgres-data:
   payment-postgres-data:
+  order-postgres-data:

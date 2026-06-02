@@ -56,6 +56,18 @@ gRPC services must:
 - propagate correlation metadata and tracing context
 - return stable error semantics that callers map to Application exceptions
 
+The local compose runtime exposes client-facing HTTP endpoints on container port `8080`. Services that provide internal gRPC capabilities expose a separate clear-text HTTP/2 endpoint on container port `8081`. `Order` reaches these endpoints directly through compose DNS:
+
+```text
+http://catalog-api:8081
+http://inventory-api:8081
+http://payment-api:8081
+```
+
+Keep the HTTP and gRPC listeners separate in the local runtime. Clear-text HTTP/2 negotiation is explicit on the internal gRPC listener and does not change the existing client-facing HTTP listener.
+
+Keep runtime gRPC packages and build-time proto code generation packages explicit. `Grpc.Tools` is a build dependency and must remain private to the project that compiles `.proto` files. The local Docker build pins `Grpc.Tools` to `2.68.1` because later codegen binaries currently regress on Linux ARM64 containers; runtime server and client packages remain independently pinned.
+
 The checkout reservation boundary must be order-level and batch-oriented:
 
 ```text

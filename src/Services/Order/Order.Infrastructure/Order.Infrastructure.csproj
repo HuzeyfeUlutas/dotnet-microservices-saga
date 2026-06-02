@@ -11,7 +11,7 @@
         <PackageReference Include="AspNetCore.HealthChecks.RabbitMQ" Version="9.0.0" />
         <PackageReference Include="Google.Protobuf" Version="3.34.0" />
         <PackageReference Include="Grpc.Net.ClientFactory" Version="2.80.0" />
-        <PackageReference Include="Grpc.Tools" Version="2.80.0">
+        <PackageReference Include="Grpc.Tools" Version="2.68.1">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
