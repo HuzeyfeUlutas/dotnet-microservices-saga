@@ -204,6 +204,8 @@ Copied proto contracts must preserve:
 
 Add compatibility tests to detect schema drift.
 
+The current Order client copies are checked against their provider-owned Catalog, Inventory, and Payment `.proto` files by normalized contract compatibility tests. This v1 guard intentionally requires the local copies to remain synchronized when a provider contract changes.
+
 ## Transaction and Reliability Rules
 
 - Use the owning service database as the consistency boundary.
