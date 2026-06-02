@@ -24,10 +24,7 @@ public sealed class StockReleaseFailedConsumer(
         }
 
         if (sagaState.LastProcessedEventId == message.EventId ||
-            sagaState.CurrentState is not (
-                OrderCheckoutSagaStatus.StockReleaseRequestedAfterPaymentFailure or
-                OrderCheckoutSagaStatus.StockReleaseRequestedAfterStockCommitFailure or
-                OrderCheckoutSagaStatus.StockReleaseRequestedAfterPaymentTimeout))
+            sagaState.CurrentState != OrderCheckoutSagaStatus.StockReleaseRequestedAfterPaymentTimeout)
         {
             return;
         }

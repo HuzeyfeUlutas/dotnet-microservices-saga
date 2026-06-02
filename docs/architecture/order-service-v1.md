@@ -349,7 +349,8 @@ Migration note:
 - new saga records use `OrderId` as `CorrelationId`; continuation events temporarily correlate through the unique `OrderId` index so records created by the previous consumer bridge remain loadable during migration
 - the state-machine endpoint is active with the Entity Framework saga repository
 - the successful path is owned by state-machine activities: `PaymentAuthorized -> CommitStockRequested -> StockCommitted -> CapturePaymentRequested -> PaymentCaptured -> OrderConfirmed`
-- failure and compensation branches remain on the consumer-based bridge until their state-machine behaviors replace them without duplicate orchestration
+- payment authorization failure and stock commit failure branches are owned by state-machine activities, including stock release, authorization void, and manual-review transitions
+- payment capture failure and payment timeout branches remain on the consumer-based bridge until their state-machine behaviors replace them without duplicate orchestration
 
 Responsibilities:
 

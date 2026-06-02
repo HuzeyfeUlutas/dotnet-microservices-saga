@@ -67,12 +67,50 @@ public sealed class OrderCheckoutStateMachine : MassTransitStateMachine<OrderChe
         During(WaitingForPayment,
             When(PaymentAuthorized)
                 .Activity(activity => activity.OfType<RequestStockCommitActivity>())
-                .TransitionTo(StockCommitRequested));
+                .TransitionTo(StockCommitRequested),
+            When(PaymentAuthorizationFailed)
+                .Activity(activity => activity.OfType<RequestStockReleaseAfterPaymentFailureActivity>())
+                .TransitionTo(StockReleaseRequestedAfterPaymentFailure));
 
         During(StockCommitRequested,
             When(StockCommitted)
                 .Activity(activity => activity.OfType<RequestPaymentCaptureActivity>())
-                .TransitionTo(CaptureRequested));
+                .TransitionTo(CaptureRequested),
+            When(StockCommitFailed)
+                .Activity(activity => activity.OfType<RequestStockReleaseAfterStockCommitFailureActivity>())
+                .TransitionTo(StockReleaseRequestedAfterStockCommitFailure));
+
+        During(StockReleaseRequestedAfterPaymentFailure,
+            When(StockReleased)
+                .Activity(activity => activity.OfType<FailOrderPaymentAfterStockReleaseActivity>())
+                .TransitionTo(PaymentFailed),
+            When(StockReleaseFailed)
+                .Then(context => MoveToManualReview(context.Saga, context.Message.EventId, context.Message.FailureReason))
+                .TransitionTo(ManualReviewRequired));
+
+        During(StockReleaseRequestedAfterStockCommitFailure,
+            When(StockReleased)
+                .Activity(activity => activity.OfType<RequestAuthorizationVoidAfterStockReleaseActivity>())
+                .TransitionTo(AuthorizationVoidRequestedAfterStockCommitFailure),
+            When(StockReleaseFailed)
+                .Then(context => MoveToManualReview(context.Saga, context.Message.EventId, context.Message.FailureReason))
+                .TransitionTo(ManualReviewRequired));
+
+        During(AuthorizationVoidRequestedAfterStockCommitFailure,
+            When(PaymentAuthorizationVoided)
+                .Activity(activity => activity.OfType<FailOrderAfterAuthorizationVoidActivity>())
+                .TransitionTo(Failed),
+            When(PaymentAuthorizationVoidFailed)
+                .Then(context => MoveToManualReview(context.Saga, context.Message.EventId, context.Message.FailureReason))
+                .TransitionTo(ManualReviewRequired));
+
+        During(StockReleaseRequestedAfterPaymentTimeout,
+            Ignore(StockReleased),
+            Ignore(StockReleaseFailed));
+
+        During(AuthorizationVoidRequestedAfterPaymentCaptureFailure,
+            Ignore(PaymentAuthorizationVoided),
+            Ignore(PaymentAuthorizationVoidFailed));
 
         During(CaptureRequested,
             When(PaymentCaptured)
@@ -80,15 +118,9 @@ public sealed class OrderCheckoutStateMachine : MassTransitStateMachine<OrderChe
                 .TransitionTo(Completed));
 
         DuringAny(
-            Ignore(PaymentAuthorizationFailed),
             Ignore(PaymentCaptureFailed),
-            Ignore(StockCommitFailed),
-            Ignore(StockReleased),
-            Ignore(StockReleaseFailed),
             Ignore(CommittedStockReversed),
             Ignore(CommittedStockReverseFailed),
-            Ignore(PaymentAuthorizationVoided),
-            Ignore(PaymentAuthorizationVoidFailed),
             Ignore(PaymentCancelled),
             Ignore(PaymentCancellationFailed));
     }
@@ -134,5 +166,15 @@ public sealed class OrderCheckoutStateMachine : MassTransitStateMachine<OrderChe
             configuration.CorrelateBy(correlationExpression);
             configuration.OnMissingInstance(missing => missing.Discard());
         });
+    }
+
+    private static void MoveToManualReview(
+        OrderCheckoutSagaState sagaState,
+        Guid eventId,
+        string failureReason)
+    {
+        sagaState.LastProcessedEventId = eventId;
+        sagaState.FailureReason = failureReason;
+        sagaState.UpdatedAtUtc = DateTime.UtcNow;
     }
 }

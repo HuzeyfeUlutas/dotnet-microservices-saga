@@ -49,13 +49,16 @@ public static class DependencyInjection
         services.AddScoped<RequestStockCommitActivity>();
         services.AddScoped<RequestPaymentCaptureActivity>();
         services.AddScoped<ConfirmOrderActivity>();
+        services.AddScoped<RequestStockReleaseAfterPaymentFailureActivity>();
+        services.AddScoped<RequestStockReleaseAfterStockCommitFailureActivity>();
+        services.AddScoped<FailOrderPaymentAfterStockReleaseActivity>();
+        services.AddScoped<RequestAuthorizationVoidAfterStockReleaseActivity>();
+        services.AddScoped<FailOrderAfterAuthorizationVoidActivity>();
 
         services.AddMassTransit(x =>
         {
             x.SetKebabCaseEndpointNameFormatter();
-            x.AddConsumer<PaymentAuthorizationFailedConsumer>();
             x.AddConsumer<PaymentCaptureFailedConsumer>();
-            x.AddConsumer<StockCommitFailedConsumer>();
             x.AddConsumer<StockReleasedConsumer>();
             x.AddConsumer<StockReleaseFailedConsumer>();
             x.AddConsumer<CommittedStockReversedConsumer>();

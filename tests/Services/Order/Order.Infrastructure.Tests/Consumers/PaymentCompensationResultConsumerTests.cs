@@ -64,8 +64,8 @@ public class PaymentCompensationResultConsumerTests
         context.OrderCheckoutSagaStates.Add(CreateSagaState(
             orderId,
             paymentId,
-            OrderCheckoutSagaStatus.AuthorizationVoidRequestedAfterStockCommitFailure,
-            "stock commit failed"));
+            OrderCheckoutSagaStatus.AuthorizationVoidRequestedAfterPaymentCaptureFailure,
+            "capture failed"));
         await context.SaveChangesAsync();
         var consumer = new PaymentAuthorizationVoidFailedConsumer(
             context,
@@ -159,7 +159,6 @@ public class PaymentCompensationResultConsumerTests
         var publisher = Substitute.For<IIntegrationEventPublisher>();
         var consumer = new StockReleasedConsumer(
             context,
-            Substitute.For<IPublishEndpoint>(),
             publisher,
             NullLogger<StockReleasedConsumer>.Instance);
         var consumeContext = Substitute.For<ConsumeContext<StockReleased>>();

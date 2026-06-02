@@ -24,9 +24,7 @@ public sealed class PaymentAuthorizationVoidFailedConsumer(
         }
 
         if (sagaState.LastProcessedEventId == message.EventId ||
-            sagaState.CurrentState is not (
-                OrderCheckoutSagaStatus.AuthorizationVoidRequestedAfterStockCommitFailure or
-                OrderCheckoutSagaStatus.AuthorizationVoidRequestedAfterPaymentCaptureFailure))
+            sagaState.CurrentState != OrderCheckoutSagaStatus.AuthorizationVoidRequestedAfterPaymentCaptureFailure)
         {
             return;
         }
