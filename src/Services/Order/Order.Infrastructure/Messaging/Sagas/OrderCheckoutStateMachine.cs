@@ -72,12 +72,10 @@ public sealed class OrderCheckoutStateMachine : MassTransitStateMachine<OrderChe
             When(OrderCheckoutStarted)
                 .Schedule(
                     PaymentTimeout,
-                    context => context.Init<PaymentTimeoutExpired>(new
-                    {
-                        EventId = Guid.NewGuid(),
+                    context => Task.FromResult(new PaymentTimeoutExpired(
+                        Guid.NewGuid(),
                         context.Saga.OrderId,
-                        OccurredAtUtc = DateTime.UtcNow
-                    }))
+                        DateTime.UtcNow)))
                 .TransitionTo(WaitingForPayment));
 
         During(WaitingForPayment,

@@ -354,6 +354,7 @@ Migration note:
 - payment authorization failure, stock commit failure, and payment capture failure branches are owned by state-machine activities, including stock release, committed-stock reverse, authorization void, and manual-review transitions
 - the payment timeout branch is owned by the state machine: scheduled `PaymentTimeoutExpired -> CancelPendingPaymentRequested -> PaymentCancelled -> ReleaseStockRequested -> StockReleased -> OrderPaymentFailed`
 - the previous consumer-based orchestration bridge has been removed
+- state-machine harness tests exercise the successful checkout path, payment failure release path, capture compensation path, unresolved compensation manual-review path, and payment-timeout path through MassTransit's in-memory transport
 
 Responsibilities:
 

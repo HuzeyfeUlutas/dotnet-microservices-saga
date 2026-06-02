@@ -248,5 +248,5 @@ The Order checkout flow migration is tracked in this order:
 4. Completed: Inventory commit and release HTTP calls to MassTransit commands and result events
 5. Completed: committed-stock reverse compensation through MassTransit commands and result events
 6. Completed: Payment authorization void and pending cancellation through MassTransit commands and result events
-7. Pending: Order consumer-based orchestration to a persisted MassTransit state machine saga
+7. Completed: Order consumer-based orchestration to a persisted MassTransit state machine saga
 8. Completed: removal of internal-only HTTP reservation endpoints
