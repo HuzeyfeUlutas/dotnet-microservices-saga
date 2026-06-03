@@ -1,21 +1,17 @@
-using Marketplace.Contracts.Payment.V1;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Payment.Application.Abstractions.Messaging;
 using Payment.Application.Abstractions.Persistence;
 using Payment.Application.Abstractions.Providers;
 using Payment.Application.Common.Exceptions;
 using Payment.Application.DTOs;
 using Payment.Application.Features.Payments;
 using Payment.Domain.Enums;
-using PaymentEntity = Payment.Domain.Entities.Payment;
 
 namespace Payment.Application.Features.Payments.VoidPaymentAuthorization;
 
 public sealed class VoidPaymentAuthorizationHandler(
     IPaymentDbContext context,
-    IPaymentProvider paymentProvider,
-    IIntegrationEventPublisher integrationEventPublisher) : IRequestHandler<VoidPaymentAuthorizationCommand, PaymentDto>
+    IPaymentProvider paymentProvider) : IRequestHandler<VoidPaymentAuthorizationCommand, PaymentDto>
 {
     public async Task<PaymentDto> Handle(VoidPaymentAuthorizationCommand request, CancellationToken cancellationToken)
     {
@@ -30,12 +26,11 @@ public sealed class VoidPaymentAuthorizationHandler(
 
         if (payment.Status == PaymentStatus.AuthorizationVoided)
         {
-            await PublishResultEventAsync(request.RequestEventId, payment, true, cancellationToken);
-            await context.SaveChangesAsync(cancellationToken);
             return payment.ToDto();
         }
 
-        payment.StartAuthorizationVoid();
+        var attempt = payment.StartAuthorizationVoid();
+        context.PaymentAttempts.Add(attempt);
         var providerResult = await paymentProvider.VoidAuthorizationAsync(payment, cancellationToken);
 
         if (providerResult.Succeeded)
@@ -46,8 +41,6 @@ public sealed class VoidPaymentAuthorizationHandler(
         {
             payment.MarkAuthorizationVoidAsFailed(providerResult.FailureReason ?? "Payment authorization void failed.");
         }
-
-        await PublishResultEventAsync(request.RequestEventId, payment, providerResult.Succeeded, cancellationToken);
 
         try
         {
@@ -70,35 +63,6 @@ public sealed class VoidPaymentAuthorizationHandler(
         }
 
         return payment.ToDto();
-    }
-
-    private Task PublishResultEventAsync(
-        Guid requestEventId,
-        PaymentEntity payment,
-        bool voided,
-        CancellationToken cancellationToken)
-    {
-        if (voided)
-        {
-            return integrationEventPublisher.PublishAsync(
-                new PaymentAuthorizationVoided(
-                    Guid.NewGuid(),
-                    requestEventId,
-                    payment.Id,
-                    payment.OrderId,
-                    DateTime.UtcNow),
-                cancellationToken);
-        }
-
-        return integrationEventPublisher.PublishAsync(
-            new PaymentAuthorizationVoidFailed(
-                Guid.NewGuid(),
-                requestEventId,
-                payment.Id,
-                payment.OrderId,
-                payment.FailureReason ?? "Payment authorization void failed.",
-                DateTime.UtcNow),
-            cancellationToken);
     }
 
     private Task<PaymentDto?> GetCurrentPaymentAsync(Guid paymentId, CancellationToken cancellationToken)

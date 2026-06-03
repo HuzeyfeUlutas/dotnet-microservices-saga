@@ -370,3 +370,26 @@ Messaging and outbox behavior must follow:
 ```text
 docs/architecture/messaging-masstransit.md
 ```
+
+## Local Compose Smoke Check
+
+After the compose services are running and migrations are applied, validate the checkout happy path with:
+
+```bash
+bash scripts/smoke-checkout.sh
+```
+
+The script verifies service readiness, creates unique Catalog and Inventory test data, starts checkout through Order, approves the Fake 3DS payment, and waits for the order to become `Confirmed`.
+
+The expected asynchronous continuation is:
+
+```text
+PaymentAuthorized
+-> CommitStockRequested
+-> StockCommitted
+-> CapturePaymentRequested
+-> PaymentCaptured
+-> OrderConfirmed
+```
+
+The script intentionally leaves generated smoke records in the local development databases because the services do not expose a complete cross-service cleanup workflow.

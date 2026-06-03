@@ -1,21 +1,17 @@
 using MediatR;
-using Marketplace.Contracts.Payment.V1;
 using Microsoft.EntityFrameworkCore;
-using Payment.Application.Abstractions.Messaging;
 using Payment.Application.Abstractions.Persistence;
 using Payment.Application.Abstractions.Providers;
 using Payment.Application.Common.Exceptions;
 using Payment.Application.DTOs;
 using Payment.Application.Features.Payments;
 using Payment.Domain.Enums;
-using PaymentEntity = Payment.Domain.Entities.Payment;
 
 namespace Payment.Application.Features.Payments.RefundPayment;
 
 public class RefundPaymentHandler(
     IPaymentDbContext context,
-    IPaymentProvider paymentProvider,
-    IIntegrationEventPublisher integrationEventPublisher) : IRequestHandler<RefundPaymentCommand, PaymentDto>
+    IPaymentProvider paymentProvider) : IRequestHandler<RefundPaymentCommand, PaymentDto>
 {
     public async Task<PaymentDto> Handle(RefundPaymentCommand request, CancellationToken cancellationToken)
     {
@@ -33,7 +29,8 @@ public class RefundPaymentHandler(
             return payment.ToDto();
         }
 
-        payment.StartRefund();
+        var attempt = payment.StartRefund();
+        context.PaymentAttempts.Add(attempt);
         var providerResult = await paymentProvider.RefundAsync(payment, cancellationToken);
 
         if (providerResult.Succeeded)
@@ -44,8 +41,6 @@ public class RefundPaymentHandler(
         {
             payment.MarkRefundAsFailed(providerResult.FailureReason ?? "Payment refund failed.");
         }
-
-        await PublishResultEventAsync(payment, providerResult.Succeeded, cancellationToken);
 
         try
         {
@@ -64,36 +59,6 @@ public class RefundPaymentHandler(
         }
 
         return payment.ToDto();
-    }
-
-    private Task PublishResultEventAsync(
-        PaymentEntity payment,
-        bool refunded,
-        CancellationToken cancellationToken)
-    {
-        if (refunded)
-        {
-            return integrationEventPublisher.PublishAsync(
-                new PaymentRefunded(
-                    Guid.NewGuid(),
-                    payment.Id,
-                    payment.OrderId,
-                    payment.Amount.Amount,
-                    payment.Amount.Currency,
-                    DateTime.UtcNow),
-                cancellationToken);
-        }
-
-        return integrationEventPublisher.PublishAsync(
-            new PaymentRefundFailed(
-                Guid.NewGuid(),
-                payment.Id,
-                payment.OrderId,
-                payment.Amount.Amount,
-                payment.Amount.Currency,
-                payment.FailureReason ?? "Payment refund failed.",
-                DateTime.UtcNow),
-            cancellationToken);
     }
 
     private Task<PaymentDto?> GetCurrentPaymentAsync(Guid paymentId, CancellationToken cancellationToken)

@@ -1,21 +1,19 @@
 using MediatR;
-using Marketplace.Contracts.Payment.V1;
 using Microsoft.EntityFrameworkCore;
-using Payment.Application.Abstractions.Messaging;
+using Microsoft.Extensions.Logging;
 using Payment.Application.Abstractions.Persistence;
 using Payment.Application.Abstractions.Providers;
 using Payment.Application.Common.Exceptions;
 using Payment.Application.DTOs;
 using Payment.Application.Features.Payments;
 using Payment.Domain.Enums;
-using PaymentEntity = Payment.Domain.Entities.Payment;
 
 namespace Payment.Application.Features.Payments.CapturePayment;
 
 public class CapturePaymentHandler(
     IPaymentDbContext context,
     IPaymentProvider paymentProvider,
-    IIntegrationEventPublisher integrationEventPublisher) : IRequestHandler<CapturePaymentCommand, PaymentDto>
+    ILogger<CapturePaymentHandler> logger) : IRequestHandler<CapturePaymentCommand, PaymentDto>
 {
     public async Task<PaymentDto> Handle(CapturePaymentCommand request, CancellationToken cancellationToken)
     {
@@ -33,7 +31,8 @@ public class CapturePaymentHandler(
             return payment.ToDto();
         }
 
-        payment.StartCapture();
+        var attempt = payment.StartCapture();
+        context.PaymentAttempts.Add(attempt);
         var providerResult = await paymentProvider.CaptureAsync(payment, cancellationToken);
 
         if (providerResult.Succeeded)
@@ -45,14 +44,19 @@ public class CapturePaymentHandler(
             payment.MarkCaptureAsFailed(providerResult.FailureReason ?? "Payment capture failed.");
         }
 
-        await PublishResultEventAsync(payment, providerResult.Succeeded, cancellationToken);
-
         try
         {
             await context.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateConcurrencyException)
+        catch (DbUpdateConcurrencyException exception)
         {
+            var concurrencyEntries = await DescribeConcurrencyEntriesAsync(exception, cancellationToken);
+            logger.LogWarning(
+                exception,
+                "Payment {PaymentId} capture concurrency conflict. Entries: {ConcurrencyEntries}",
+                request.PaymentId,
+                concurrencyEntries);
+
             var currentPayment = await GetCurrentPaymentAsync(request.PaymentId, cancellationToken);
 
             if (currentPayment?.Status == PaymentStatus.Captured)
@@ -66,34 +70,37 @@ public class CapturePaymentHandler(
         return payment.ToDto();
     }
 
-    private Task PublishResultEventAsync(
-        PaymentEntity payment,
-        bool captured,
+    private static async Task<string> DescribeConcurrencyEntriesAsync(
+        DbUpdateConcurrencyException exception,
         CancellationToken cancellationToken)
     {
-        if (captured)
+        var descriptions = new List<string>();
+
+        foreach (var entry in exception.Entries)
         {
-            return integrationEventPublisher.PublishAsync(
-                new PaymentCaptured(
-                    Guid.NewGuid(),
-                    payment.Id,
-                    payment.OrderId,
-                    payment.Amount.Amount,
-                    payment.Amount.Currency,
-                    DateTime.UtcNow),
-                cancellationToken);
+            var databaseValues = await entry.GetDatabaseValuesAsync(cancellationToken);
+            var concurrencyTokens = entry.Properties
+                .Where(property => property.Metadata.IsConcurrencyToken)
+                .Select(property =>
+                    $"{property.Metadata.Name} " +
+                    $"original={FormatValue(property.OriginalValue)} " +
+                    $"current={FormatValue(property.CurrentValue)} " +
+                    $"database={FormatValue(databaseValues?[property.Metadata.Name])}");
+
+            descriptions.Add($"{entry.Metadata.ClrType.Name}[{string.Join(", ", concurrencyTokens)}]");
         }
 
-        return integrationEventPublisher.PublishAsync(
-            new PaymentCaptureFailed(
-                Guid.NewGuid(),
-                payment.Id,
-                payment.OrderId,
-                payment.Amount.Amount,
-                payment.Amount.Currency,
-                payment.FailureReason ?? "Payment capture failed.",
-                DateTime.UtcNow),
-            cancellationToken);
+        return string.Join("; ", descriptions);
+    }
+
+    private static string FormatValue(object? value)
+    {
+        return value switch
+        {
+            null => "<null>",
+            byte[] bytes => Convert.ToHexString(bytes),
+            _ => value.ToString() ?? "<null>"
+        };
     }
 
     private Task<PaymentDto?> GetCurrentPaymentAsync(Guid paymentId, CancellationToken cancellationToken)

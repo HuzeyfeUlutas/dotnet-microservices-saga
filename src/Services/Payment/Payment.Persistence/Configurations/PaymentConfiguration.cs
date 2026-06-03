@@ -26,6 +26,10 @@ public class PaymentConfiguration : IEntityTypeConfiguration<PaymentEntity>
                 .HasColumnName("currency")
                 .HasMaxLength(3)
                 .IsRequired();
+
+            moneyBuilder.Property<uint>("RowVersion")
+                .HasColumnName("xmin")
+                .IsRowVersion();
         });
 
         builder.Navigation(x => x.Amount)

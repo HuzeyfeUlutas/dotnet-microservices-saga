@@ -7,6 +7,7 @@ using Payment.Application.Abstractions.Messaging;
 using Payment.Application.DTOs;
 using Payment.Application.Features.Payments.CancelPendingPayment;
 using Payment.Application.Features.Payments.VoidPaymentAuthorization;
+using Payment.Domain.Enums;
 using Payment.Domain.Exceptions;
 using Payment.Infrastructure.Messaging.Consumers;
 using Xunit;
@@ -16,7 +17,7 @@ namespace Payment.Infrastructure.Tests.Messaging.Consumers;
 public class PaymentCompensationRequestedConsumerTests
 {
     [Fact]
-    public async Task VoidAuthorization_should_dispatch_command()
+    public async Task VoidAuthorization_should_dispatch_command_and_publish_success()
     {
         var sender = Substitute.For<ISender>();
         var publisher = Substitute.For<IIntegrationEventPublisher>();
@@ -33,6 +34,8 @@ public class PaymentCompensationRequestedConsumerTests
         var context = Substitute.For<ConsumeContext<VoidPaymentAuthorizationRequested>>();
         context.Message.Returns(message);
         context.CancellationToken.Returns(CancellationToken.None);
+        sender.Send(Arg.Any<VoidPaymentAuthorizationCommand>(), Arg.Any<CancellationToken>())
+            .Returns(CreatePaymentDto(message.PaymentId, message.OrderId, PaymentStatus.AuthorizationVoided));
 
         await consumer.Consume(context);
 
@@ -40,6 +43,12 @@ public class PaymentCompensationRequestedConsumerTests
             Arg.Is<VoidPaymentAuthorizationCommand>(command =>
                 command.RequestEventId == message.EventId &&
                 command.PaymentId == message.PaymentId),
+            CancellationToken.None);
+        await publisher.Received(1).PublishAsync(
+            Arg.Is<PaymentAuthorizationVoided>(result =>
+                result.RequestEventId == message.EventId &&
+                result.PaymentId == message.PaymentId &&
+                result.OrderId == message.OrderId),
             CancellationToken.None);
     }
 
@@ -76,7 +85,7 @@ public class PaymentCompensationRequestedConsumerTests
     }
 
     [Fact]
-    public async Task CancelPending_should_dispatch_command()
+    public async Task CancelPending_should_dispatch_command_and_publish_success()
     {
         var sender = Substitute.For<ISender>();
         var publisher = Substitute.For<IIntegrationEventPublisher>();
@@ -93,6 +102,8 @@ public class PaymentCompensationRequestedConsumerTests
         var context = Substitute.For<ConsumeContext<CancelPendingPaymentRequested>>();
         context.Message.Returns(message);
         context.CancellationToken.Returns(CancellationToken.None);
+        sender.Send(Arg.Any<CancelPendingPaymentCommand>(), Arg.Any<CancellationToken>())
+            .Returns(CreatePaymentDto(message.PaymentId, message.OrderId, PaymentStatus.Cancelled));
 
         await consumer.Consume(context);
 
@@ -101,6 +112,12 @@ public class PaymentCompensationRequestedConsumerTests
                 command.RequestEventId == message.EventId &&
                 command.PaymentId == message.PaymentId &&
                 command.Reason == message.Reason),
+            CancellationToken.None);
+        await publisher.Received(1).PublishAsync(
+            Arg.Is<PaymentCancelled>(result =>
+                result.RequestEventId == message.EventId &&
+                result.PaymentId == message.PaymentId &&
+                result.OrderId == message.OrderId),
             CancellationToken.None);
     }
 
@@ -134,5 +151,23 @@ public class PaymentCompensationRequestedConsumerTests
                 result.OrderId == message.OrderId &&
                 result.FailureReason == "Cancellation rejected."),
             CancellationToken.None);
+    }
+
+    private static PaymentDto CreatePaymentDto(Guid paymentId, Guid orderId, PaymentStatus status)
+    {
+        return new PaymentDto(
+            paymentId,
+            orderId,
+            300m,
+            "TRY",
+            PaymentProviderType.Fake,
+            PaymentMethodType.Card,
+            status,
+            "idem-payment",
+            DateTime.UtcNow,
+            null,
+            null,
+            null,
+            null);
     }
 }

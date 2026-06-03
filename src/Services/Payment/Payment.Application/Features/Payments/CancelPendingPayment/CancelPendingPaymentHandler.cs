@@ -1,19 +1,15 @@
-using Marketplace.Contracts.Payment.V1;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Payment.Application.Abstractions.Messaging;
 using Payment.Application.Abstractions.Persistence;
 using Payment.Application.Common.Exceptions;
 using Payment.Application.DTOs;
 using Payment.Application.Features.Payments;
 using Payment.Domain.Enums;
-using PaymentEntity = Payment.Domain.Entities.Payment;
 
 namespace Payment.Application.Features.Payments.CancelPendingPayment;
 
-public sealed class CancelPendingPaymentHandler(
-    IPaymentDbContext context,
-    IIntegrationEventPublisher integrationEventPublisher) : IRequestHandler<CancelPendingPaymentCommand, PaymentDto>
+public sealed class CancelPendingPaymentHandler(IPaymentDbContext context)
+    : IRequestHandler<CancelPendingPaymentCommand, PaymentDto>
 {
     public async Task<PaymentDto> Handle(CancelPendingPaymentCommand request, CancellationToken cancellationToken)
     {
@@ -28,14 +24,10 @@ public sealed class CancelPendingPaymentHandler(
 
         if (payment.Status == PaymentStatus.Cancelled)
         {
-            await PublishCancelledEventAsync(request.RequestEventId, payment, cancellationToken);
-            await context.SaveChangesAsync(cancellationToken);
             return payment.ToDto();
         }
 
         payment.CancelPending(request.Reason);
-
-        await PublishCancelledEventAsync(request.RequestEventId, payment, cancellationToken);
 
         try
         {
@@ -58,21 +50,6 @@ public sealed class CancelPendingPaymentHandler(
         }
 
         return payment.ToDto();
-    }
-
-    private Task PublishCancelledEventAsync(
-        Guid requestEventId,
-        PaymentEntity payment,
-        CancellationToken cancellationToken)
-    {
-        return integrationEventPublisher.PublishAsync(
-            new PaymentCancelled(
-                Guid.NewGuid(),
-                requestEventId,
-                payment.Id,
-                payment.OrderId,
-                DateTime.UtcNow),
-            cancellationToken);
     }
 
     private Task<PaymentDto?> GetCurrentPaymentAsync(Guid paymentId, CancellationToken cancellationToken)
