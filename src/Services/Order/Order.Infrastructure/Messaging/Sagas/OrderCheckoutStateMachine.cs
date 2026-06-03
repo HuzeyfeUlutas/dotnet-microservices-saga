@@ -161,6 +161,8 @@ public sealed class OrderCheckoutStateMachine : MassTransitStateMachine<OrderChe
                 .Then(context => MoveToManualReview(context.Saga, context.Message.EventId, context.Message.FailureReason))
                 .TransitionTo(ManualReviewRequired));
 
+        IgnoreDuplicateAndOutOfOrderEvents();
+        IgnoreFinalStateEvents();
         IgnorePaymentTimeoutIn(
             StockCommitRequested,
             StockReleaseRequestedAfterPaymentFailure,
@@ -226,6 +228,91 @@ public sealed class OrderCheckoutStateMachine : MassTransitStateMachine<OrderChe
         foreach (var state in states)
         {
             During(state, Ignore(PaymentTimeout.Received));
+        }
+    }
+
+    private void IgnoreDuplicateAndOutOfOrderEvents()
+    {
+        During(WaitingForPayment,
+            Ignore(OrderCheckoutStarted),
+            Ignore(StockCommitted),
+            Ignore(StockCommitFailed),
+            Ignore(PaymentCaptured),
+            Ignore(PaymentCaptureFailed),
+            Ignore(StockReleased),
+            Ignore(StockReleaseFailed),
+            Ignore(CommittedStockReversed),
+            Ignore(CommittedStockReverseFailed),
+            Ignore(PaymentAuthorizationVoided),
+            Ignore(PaymentAuthorizationVoidFailed),
+            Ignore(PaymentCancelled),
+            Ignore(PaymentCancellationFailed));
+
+        During(StockCommitRequested,
+            Ignore(OrderCheckoutStarted),
+            Ignore(PaymentAuthorized),
+            Ignore(PaymentAuthorizationFailed));
+
+        During(CaptureRequested,
+            Ignore(OrderCheckoutStarted),
+            Ignore(PaymentAuthorized),
+            Ignore(PaymentAuthorizationFailed),
+            Ignore(StockCommitted),
+            Ignore(StockCommitFailed));
+
+        During(StockReleaseRequestedAfterPaymentFailure,
+            Ignore(OrderCheckoutStarted),
+            Ignore(PaymentAuthorizationFailed));
+
+        During(StockReleaseRequestedAfterStockCommitFailure,
+            Ignore(OrderCheckoutStarted),
+            Ignore(StockCommitFailed));
+
+        During(StockReverseRequestedAfterPaymentCaptureFailure,
+            Ignore(OrderCheckoutStarted),
+            Ignore(PaymentCaptureFailed));
+
+        During(AuthorizationVoidRequestedAfterStockCommitFailure,
+            Ignore(OrderCheckoutStarted),
+            Ignore(StockReleased));
+
+        During(AuthorizationVoidRequestedAfterPaymentCaptureFailure,
+            Ignore(OrderCheckoutStarted),
+            Ignore(CommittedStockReversed));
+
+        During(PendingPaymentCancellationRequestedAfterTimeout,
+            Ignore(OrderCheckoutStarted));
+
+        During(StockReleaseRequestedAfterPaymentTimeout,
+            Ignore(OrderCheckoutStarted),
+            Ignore(PaymentCancelled));
+    }
+
+    private void IgnoreFinalStateEvents()
+    {
+        IgnoreCheckoutEventsIn(PaymentFailed, Completed, Failed, ManualReviewRequired);
+    }
+
+    private void IgnoreCheckoutEventsIn(params State[] states)
+    {
+        foreach (var state in states)
+        {
+            During(state,
+                Ignore(OrderCheckoutStarted),
+                Ignore(PaymentAuthorized),
+                Ignore(PaymentAuthorizationFailed),
+                Ignore(StockCommitted),
+                Ignore(StockCommitFailed),
+                Ignore(PaymentCaptured),
+                Ignore(PaymentCaptureFailed),
+                Ignore(StockReleased),
+                Ignore(StockReleaseFailed),
+                Ignore(CommittedStockReversed),
+                Ignore(CommittedStockReverseFailed),
+                Ignore(PaymentAuthorizationVoided),
+                Ignore(PaymentAuthorizationVoidFailed),
+                Ignore(PaymentCancelled),
+                Ignore(PaymentCancellationFailed));
         }
     }
 

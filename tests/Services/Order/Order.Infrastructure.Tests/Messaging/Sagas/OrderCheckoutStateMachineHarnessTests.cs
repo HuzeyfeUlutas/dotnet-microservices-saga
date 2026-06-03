@@ -230,6 +230,262 @@ public class OrderCheckoutStateMachineHarnessTests
             Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task Stock_commit_failure_should_release_stock_void_authorization_and_reach_failed_state()
+    {
+        var order = CreateOrder("idem-harness-stock-commit-failed");
+        var paymentId = Guid.NewGuid();
+        var integrationEventPublisher = Substitute.For<IIntegrationEventPublisher>();
+        await using var provider = CreateProvider(integrationEventPublisher);
+        await SeedOrderAsync(provider, order);
+        var (harness, sagaHarness) = await StartHarnessAsync(provider);
+
+        await StartCheckoutAsync(harness, sagaHarness, order.Id, paymentId);
+        await harness.Bus.Publish(new PaymentAuthorized(
+            Guid.NewGuid(),
+            paymentId,
+            order.Id,
+            order.TotalAmount,
+            order.Currency,
+            DateTime.UtcNow));
+        (await harness.Published.Any<CommitStockRequested>(x => x.Context.Message.OrderId == order.Id))
+            .Should().BeTrue();
+
+        await harness.Bus.Publish(new StockCommitFailed(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            order.Id,
+            "commit failed",
+            DateTime.UtcNow));
+        (await harness.Published.Any<ReleaseStockRequested>(x => x.Context.Message.OrderId == order.Id))
+            .Should().BeTrue();
+
+        await harness.Bus.Publish(new StockReleased(Guid.NewGuid(), Guid.NewGuid(), order.Id, DateTime.UtcNow));
+        (await harness.Published.Any<VoidPaymentAuthorizationRequested>(x => x.Context.Message.OrderId == order.Id))
+            .Should().BeTrue();
+
+        await harness.Bus.Publish(new PaymentAuthorizationVoided(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            paymentId,
+            order.Id,
+            DateTime.UtcNow));
+
+        (await sagaHarness.Exists(order.Id, sagaHarness.StateMachine.Failed)).Should().NotBeNull();
+        await integrationEventPublisher.Received(1).PublishAsync(
+            Arg.Is<OrderFailed>(message =>
+                message.OrderId == order.Id &&
+                message.PaymentId == paymentId &&
+                message.FailureReason == "commit failed"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Stock_reverse_failure_should_reach_manual_review_state()
+    {
+        var order = CreateOrder("idem-harness-stock-reverse-failed");
+        var paymentId = Guid.NewGuid();
+        var integrationEventPublisher = Substitute.For<IIntegrationEventPublisher>();
+        await using var provider = CreateProvider(integrationEventPublisher);
+        await SeedOrderAsync(provider, order);
+        var (harness, sagaHarness) = await StartHarnessAsync(provider);
+
+        await StartCheckoutAsync(harness, sagaHarness, order.Id, paymentId);
+        await ReachStockReverseRequestedAfterCaptureFailureAsync(harness, order, paymentId);
+
+        var reverseFailed = new CommittedStockReverseFailed(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            order.Id,
+            "reverse failed",
+            DateTime.UtcNow);
+        await harness.Bus.Publish(reverseFailed);
+
+        (await sagaHarness.Exists(order.Id, sagaHarness.StateMachine.ManualReviewRequired)).Should().NotBeNull();
+        var sagaState = sagaHarness.Created.ContainsInState(
+            order.Id,
+            sagaHarness.StateMachine,
+            sagaHarness.StateMachine.ManualReviewRequired);
+        sagaState.Should().NotBeNull();
+        sagaState!.FailureReason.Should().Be("reverse failed");
+        sagaState.LastProcessedEventId.Should().Be(reverseFailed.EventId);
+        await integrationEventPublisher.DidNotReceive()
+            .PublishAsync(Arg.Any<OrderFailed>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Authorization_void_failure_after_capture_failure_should_reach_manual_review_state()
+    {
+        var order = CreateOrder("idem-harness-auth-void-failed-after-capture");
+        var paymentId = Guid.NewGuid();
+        var integrationEventPublisher = Substitute.For<IIntegrationEventPublisher>();
+        await using var provider = CreateProvider(integrationEventPublisher);
+        await SeedOrderAsync(provider, order);
+        var (harness, sagaHarness) = await StartHarnessAsync(provider);
+
+        await StartCheckoutAsync(harness, sagaHarness, order.Id, paymentId);
+        await ReachStockReverseRequestedAfterCaptureFailureAsync(harness, order, paymentId);
+        await harness.Bus.Publish(new CommittedStockReversed(Guid.NewGuid(), Guid.NewGuid(), order.Id, DateTime.UtcNow));
+        (await harness.Published.Any<VoidPaymentAuthorizationRequested>(x => x.Context.Message.OrderId == order.Id))
+            .Should().BeTrue();
+
+        var authorizationVoidFailed = new PaymentAuthorizationVoidFailed(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            paymentId,
+            order.Id,
+            "void failed",
+            DateTime.UtcNow);
+        await harness.Bus.Publish(authorizationVoidFailed);
+
+        (await sagaHarness.Exists(order.Id, sagaHarness.StateMachine.ManualReviewRequired)).Should().NotBeNull();
+        var sagaState = sagaHarness.Created.ContainsInState(
+            order.Id,
+            sagaHarness.StateMachine,
+            sagaHarness.StateMachine.ManualReviewRequired);
+        sagaState.Should().NotBeNull();
+        sagaState!.FailureReason.Should().Be("void failed");
+        sagaState.LastProcessedEventId.Should().Be(authorizationVoidFailed.EventId);
+        await integrationEventPublisher.DidNotReceive()
+            .PublishAsync(Arg.Any<OrderFailed>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Duplicate_payment_authorized_event_should_not_publish_duplicate_stock_commit()
+    {
+        var order = CreateOrder("idem-harness-duplicate-payment-authorized");
+        var paymentId = Guid.NewGuid();
+        var integrationEventPublisher = Substitute.For<IIntegrationEventPublisher>();
+        await using var provider = CreateProvider(integrationEventPublisher);
+        await SeedOrderAsync(provider, order);
+        var (harness, sagaHarness) = await StartHarnessAsync(provider);
+
+        await StartCheckoutAsync(harness, sagaHarness, order.Id, paymentId);
+        var paymentAuthorized = new PaymentAuthorized(
+            Guid.NewGuid(),
+            paymentId,
+            order.Id,
+            order.TotalAmount,
+            order.Currency,
+            DateTime.UtcNow);
+
+        await harness.Bus.Publish(paymentAuthorized);
+        (await harness.Published.Any<CommitStockRequested>(x => x.Context.Message.OrderId == order.Id))
+            .Should().BeTrue();
+
+        await harness.Bus.Publish(paymentAuthorized);
+
+        PublishedCount<CommitStockRequested>(harness, order.Id).Should().Be(1);
+        (await sagaHarness.Exists(order.Id, sagaHarness.StateMachine.StockCommitRequested)).Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Out_of_order_stock_committed_event_should_be_ignored_while_waiting_for_payment()
+    {
+        var order = CreateOrder("idem-harness-out-of-order-stock-committed");
+        var paymentId = Guid.NewGuid();
+        var integrationEventPublisher = Substitute.For<IIntegrationEventPublisher>();
+        await using var provider = CreateProvider(integrationEventPublisher);
+        await SeedOrderAsync(provider, order);
+        var (harness, sagaHarness) = await StartHarnessAsync(provider);
+
+        await StartCheckoutAsync(harness, sagaHarness, order.Id, paymentId);
+        await harness.Bus.Publish(new StockCommitted(Guid.NewGuid(), Guid.NewGuid(), order.Id, DateTime.UtcNow));
+
+        (await harness.Consumed.Any<StockCommitted>(x => x.Context.Message.OrderId == order.Id))
+            .Should().BeTrue();
+        PublishedCount<CapturePaymentRequested>(harness, order.Id).Should().Be(0);
+        (await sagaHarness.Exists(order.Id, sagaHarness.StateMachine.WaitingForPayment)).Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Redelivered_stock_committed_event_should_not_publish_duplicate_payment_capture()
+    {
+        var order = CreateOrder("idem-harness-redelivered-stock-committed");
+        var paymentId = Guid.NewGuid();
+        var integrationEventPublisher = Substitute.For<IIntegrationEventPublisher>();
+        await using var provider = CreateProvider(integrationEventPublisher);
+        await SeedOrderAsync(provider, order);
+        var (harness, sagaHarness) = await StartHarnessAsync(provider);
+
+        await StartCheckoutAsync(harness, sagaHarness, order.Id, paymentId);
+        await harness.Bus.Publish(new PaymentAuthorized(
+            Guid.NewGuid(),
+            paymentId,
+            order.Id,
+            order.TotalAmount,
+            order.Currency,
+            DateTime.UtcNow));
+        (await harness.Published.Any<CommitStockRequested>(x => x.Context.Message.OrderId == order.Id))
+            .Should().BeTrue();
+
+        var stockCommitted = new StockCommitted(Guid.NewGuid(), Guid.NewGuid(), order.Id, DateTime.UtcNow);
+        await harness.Bus.Publish(stockCommitted);
+        (await harness.Published.Any<CapturePaymentRequested>(x => x.Context.Message.OrderId == order.Id))
+            .Should().BeTrue();
+
+        await harness.Bus.Publish(stockCommitted);
+
+        PublishedCount<CapturePaymentRequested>(harness, order.Id).Should().Be(1);
+        (await sagaHarness.Exists(order.Id, sagaHarness.StateMachine.CaptureRequested)).Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Final_state_should_ignore_late_checkout_events()
+    {
+        var order = CreateOrder("idem-harness-final-state-ignore");
+        var paymentId = Guid.NewGuid();
+        var integrationEventPublisher = Substitute.For<IIntegrationEventPublisher>();
+        await using var provider = CreateProvider(integrationEventPublisher);
+        await SeedOrderAsync(provider, order);
+        var (harness, sagaHarness) = await StartHarnessAsync(provider);
+
+        await StartCheckoutAsync(harness, sagaHarness, order.Id, paymentId);
+        await harness.Bus.Publish(new PaymentAuthorized(
+            Guid.NewGuid(),
+            paymentId,
+            order.Id,
+            order.TotalAmount,
+            order.Currency,
+            DateTime.UtcNow));
+        (await harness.Published.Any<CommitStockRequested>(x => x.Context.Message.OrderId == order.Id))
+            .Should().BeTrue();
+        await harness.Bus.Publish(new StockCommitted(Guid.NewGuid(), Guid.NewGuid(), order.Id, DateTime.UtcNow));
+        (await harness.Published.Any<CapturePaymentRequested>(x => x.Context.Message.OrderId == order.Id))
+            .Should().BeTrue();
+        await harness.Bus.Publish(new PaymentCaptured(
+            Guid.NewGuid(),
+            paymentId,
+            order.Id,
+            order.TotalAmount,
+            order.Currency,
+            DateTime.UtcNow));
+        (await sagaHarness.Exists(order.Id, sagaHarness.StateMachine.Completed)).Should().NotBeNull();
+
+        await harness.Bus.Publish(new PaymentAuthorized(
+            Guid.NewGuid(),
+            paymentId,
+            order.Id,
+            order.TotalAmount,
+            order.Currency,
+            DateTime.UtcNow));
+        await harness.Bus.Publish(new StockCommitted(Guid.NewGuid(), Guid.NewGuid(), order.Id, DateTime.UtcNow));
+        await harness.Bus.Publish(new PaymentCaptured(
+            Guid.NewGuid(),
+            paymentId,
+            order.Id,
+            order.TotalAmount,
+            order.Currency,
+            DateTime.UtcNow));
+
+        (await sagaHarness.Exists(order.Id, sagaHarness.StateMachine.Completed)).Should().NotBeNull();
+        PublishedCount<CommitStockRequested>(harness, order.Id).Should().Be(1);
+        PublishedCount<CapturePaymentRequested>(harness, order.Id).Should().Be(1);
+        await integrationEventPublisher.Received(1).PublishAsync(
+            Arg.Is<OrderConfirmed>(message => message.OrderId == order.Id),
+            Arg.Any<CancellationToken>());
+    }
+
     private static ServiceProvider CreateProvider(IIntegrationEventPublisher integrationEventPublisher)
     {
         var services = new ServiceCollection();
@@ -321,6 +577,51 @@ public class OrderCheckoutStateMachineHarnessTests
         return fault is null
             ? $"{typeof(TMessage).Name} did not produce the expected message and no MassTransit fault was published."
             : string.Join(" | ", fault.Context.Message.Exceptions.Select(FormatException));
+    }
+
+    private static int PublishedCount<TMessage>(ITestHarness harness, Guid orderId)
+        where TMessage : class
+    {
+        return harness.Published.Select<TMessage>().Count(x => HasOrderId(x.Context.Message, orderId));
+    }
+
+    private static bool HasOrderId<TMessage>(TMessage message, Guid orderId)
+        where TMessage : class
+    {
+        var orderIdProperty = typeof(TMessage).GetProperty("OrderId");
+
+        return orderIdProperty?.GetValue(message) is Guid messageOrderId && messageOrderId == orderId;
+    }
+
+    private static async Task ReachStockReverseRequestedAfterCaptureFailureAsync(
+        ITestHarness harness,
+        Order.Domain.Entities.Order order,
+        Guid paymentId)
+    {
+        await harness.Bus.Publish(new PaymentAuthorized(
+            Guid.NewGuid(),
+            paymentId,
+            order.Id,
+            order.TotalAmount,
+            order.Currency,
+            DateTime.UtcNow));
+        (await harness.Published.Any<CommitStockRequested>(x => x.Context.Message.OrderId == order.Id))
+            .Should().BeTrue();
+
+        await harness.Bus.Publish(new StockCommitted(Guid.NewGuid(), Guid.NewGuid(), order.Id, DateTime.UtcNow));
+        (await harness.Published.Any<CapturePaymentRequested>(x => x.Context.Message.OrderId == order.Id))
+            .Should().BeTrue();
+
+        await harness.Bus.Publish(new PaymentCaptureFailed(
+            Guid.NewGuid(),
+            paymentId,
+            order.Id,
+            order.TotalAmount,
+            order.Currency,
+            "capture failed",
+            DateTime.UtcNow));
+        (await harness.Published.Any<ReverseCommittedStockRequested>(x => x.Context.Message.OrderId == order.Id))
+            .Should().BeTrue();
     }
 
     private static Order.Domain.Entities.Order CreateOrder(string idempotencyKey)
