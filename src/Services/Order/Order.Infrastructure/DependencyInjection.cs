@@ -78,6 +78,12 @@ public static class DependencyInjection
 
             x.AddConfigureEndpointsCallback((context, _, cfg) =>
             {
+                cfg.UseMessageRetry(retry => retry.Intervals(
+                    TimeSpan.FromMilliseconds(100),
+                    TimeSpan.FromMilliseconds(250),
+                    TimeSpan.FromMilliseconds(500),
+                    TimeSpan.FromSeconds(1),
+                    TimeSpan.FromSeconds(2)));
                 cfg.UseEntityFrameworkOutbox<OrderDbContext>(context);
             });
 

@@ -46,8 +46,12 @@ public class OrderCheckoutStateMachineHarnessTests
 
         await harness.Bus.Publish(new StockCommitted(Guid.NewGuid(), Guid.NewGuid(), order.Id, DateTime.UtcNow));
 
-        (await harness.Published.Any<CapturePaymentRequested>(x => x.Context.Message.OrderId == order.Id))
+        (await harness.Consumed.Any<StockCommitted>(x => x.Context.Message.OrderId == order.Id))
             .Should().BeTrue();
+        if (!await harness.Published.Any<CapturePaymentRequested>(x => x.Context.Message.OrderId == order.Id))
+        {
+            throw new XunitException(GetFaultMessage<StockCommitted>(harness));
+        }
 
         await harness.Bus.Publish(new PaymentCaptured(
             Guid.NewGuid(),
@@ -87,6 +91,72 @@ public class OrderCheckoutStateMachineHarnessTests
 
         (await harness.Published.Any<ReleaseStockRequested>(x => x.Context.Message.OrderId == order.Id))
             .Should().BeTrue();
+
+        await harness.Bus.Publish(new StockReleased(Guid.NewGuid(), Guid.NewGuid(), order.Id, DateTime.UtcNow));
+
+        (await sagaHarness.Exists(order.Id, sagaHarness.StateMachine.PaymentFailed)).Should().NotBeNull();
+        await integrationEventPublisher.Received(1).PublishAsync(
+            Arg.Is<OrderPaymentFailed>(message =>
+                message.OrderId == order.Id &&
+                message.PaymentId == paymentId &&
+                message.FailureReason == "3ds failed"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Early_payment_authorized_event_should_be_retried_until_checkout_saga_exists()
+    {
+        var order = CreateOrder("idem-harness-early-payment-authorized");
+        var paymentId = Guid.NewGuid();
+        var integrationEventPublisher = Substitute.For<IIntegrationEventPublisher>();
+        await using var provider = CreateProvider(integrationEventPublisher);
+        await SeedOrderAsync(provider, order);
+        var (harness, sagaHarness) = await StartHarnessAsync(provider);
+
+        await harness.Bus.Publish(new PaymentAuthorized(
+            Guid.NewGuid(),
+            paymentId,
+            order.Id,
+            order.TotalAmount,
+            order.Currency,
+            DateTime.UtcNow));
+
+        await harness.Bus.Publish(new OrderCheckoutStarted(Guid.NewGuid(), order.Id, paymentId, DateTime.UtcNow));
+
+        (await harness.Published.Any<CommitStockRequested>(x => x.Context.Message.OrderId == order.Id))
+            .Should().BeTrue();
+        (await sagaHarness.Exists(order.Id, sagaHarness.StateMachine.StockCommitRequested)).Should().NotBeNull();
+
+        await harness.Bus.Publish(new StockCommitted(Guid.NewGuid(), Guid.NewGuid(), order.Id, DateTime.UtcNow));
+        (await harness.Published.Any<CapturePaymentRequested>(x => x.Context.Message.OrderId == order.Id))
+            .Should().BeTrue();
+        (await sagaHarness.Exists(order.Id, sagaHarness.StateMachine.CaptureRequested)).Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Early_payment_authorization_failure_event_should_be_retried_until_checkout_saga_exists()
+    {
+        var order = CreateOrder("idem-harness-early-payment-failed");
+        var paymentId = Guid.NewGuid();
+        var integrationEventPublisher = Substitute.For<IIntegrationEventPublisher>();
+        await using var provider = CreateProvider(integrationEventPublisher);
+        await SeedOrderAsync(provider, order);
+        var (harness, sagaHarness) = await StartHarnessAsync(provider);
+
+        await harness.Bus.Publish(new PaymentAuthorizationFailed(
+            Guid.NewGuid(),
+            paymentId,
+            order.Id,
+            order.TotalAmount,
+            order.Currency,
+            "3ds failed",
+            DateTime.UtcNow));
+
+        await harness.Bus.Publish(new OrderCheckoutStarted(Guid.NewGuid(), order.Id, paymentId, DateTime.UtcNow));
+
+        (await harness.Published.Any<ReleaseStockRequested>(x => x.Context.Message.OrderId == order.Id))
+            .Should().BeTrue();
+        (await sagaHarness.Exists(order.Id, sagaHarness.StateMachine.StockReleaseRequestedAfterPaymentFailure)).Should().NotBeNull();
 
         await harness.Bus.Publish(new StockReleased(Guid.NewGuid(), Guid.NewGuid(), order.Id, DateTime.UtcNow));
 
@@ -186,7 +256,7 @@ public class OrderCheckoutStateMachineHarnessTests
         await harness.Bus.Publish(stockReleaseFailed);
 
         (await sagaHarness.Exists(order.Id, sagaHarness.StateMachine.ManualReviewRequired)).Should().NotBeNull();
-        var sagaState = sagaHarness.Created.ContainsInState(
+        var sagaState = sagaHarness.Sagas.ContainsInState(
             order.Id,
             sagaHarness.StateMachine,
             sagaHarness.StateMachine.ManualReviewRequired);
@@ -302,7 +372,7 @@ public class OrderCheckoutStateMachineHarnessTests
         await harness.Bus.Publish(reverseFailed);
 
         (await sagaHarness.Exists(order.Id, sagaHarness.StateMachine.ManualReviewRequired)).Should().NotBeNull();
-        var sagaState = sagaHarness.Created.ContainsInState(
+        var sagaState = sagaHarness.Sagas.ContainsInState(
             order.Id,
             sagaHarness.StateMachine,
             sagaHarness.StateMachine.ManualReviewRequired);
@@ -339,7 +409,7 @@ public class OrderCheckoutStateMachineHarnessTests
         await harness.Bus.Publish(authorizationVoidFailed);
 
         (await sagaHarness.Exists(order.Id, sagaHarness.StateMachine.ManualReviewRequired)).Should().NotBeNull();
-        var sagaState = sagaHarness.Created.ContainsInState(
+        var sagaState = sagaHarness.Sagas.ContainsInState(
             order.Id,
             sagaHarness.StateMachine,
             sagaHarness.StateMachine.ManualReviewRequired);
@@ -511,6 +581,13 @@ public class OrderCheckoutStateMachineHarnessTests
             configuration.SetTestTimeouts(
                 testTimeout: TimeSpan.FromSeconds(10),
                 testInactivityTimeout: TimeSpan.FromSeconds(2));
+            configuration.AddConfigureEndpointsCallback((_, _, cfg) =>
+            {
+                cfg.UseMessageRetry(retry => retry.Intervals(
+                    TimeSpan.FromMilliseconds(50),
+                    TimeSpan.FromMilliseconds(100),
+                    TimeSpan.FromMilliseconds(200)));
+            });
             configuration.AddSagaStateMachine<OrderCheckoutStateMachine, OrderCheckoutSagaState>();
         });
 
