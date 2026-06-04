@@ -67,10 +67,7 @@ public class InventoryItemConfiguration : IEntityTypeConfiguration<InventoryItem
         builder.Navigation(x => x.StockMovements)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
-        builder.HasIndex(x => x.ProductId)
-            .IsUnique();
-
-        builder.HasIndex(x => x.Sku)
+        builder.HasIndex(x => new { x.ProductId, x.Sku })
             .IsUnique();
 
         builder.HasQueryFilter(x => !x.IsDeleted);
