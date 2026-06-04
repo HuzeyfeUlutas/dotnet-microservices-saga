@@ -17,24 +17,26 @@ public class CreatePaymentHandler(
 {
     public async Task<CreatePaymentResultDto> Handle(CreatePaymentCommand request, CancellationToken cancellationToken)
     {
+        var idempotencyKey = NormalizeIdempotencyKey(request.IdempotencyKey);
+        var amount = new Money(request.Amount, request.Currency);
+
         var existingPayment = await context.Payments
             .Include(x => x.Attempts)
-            .FirstOrDefaultAsync(x => x.IdempotencyKey == request.IdempotencyKey, cancellationToken);
+            .FirstOrDefaultAsync(x => x.IdempotencyKey == idempotencyKey, cancellationToken);
 
         if (existingPayment is not null)
         {
-            var existingAction = ResolveExistingAction(existingPayment);
-            return new CreatePaymentResultDto(existingPayment.ToDto(), existingAction);
+            return ResolveIdempotentResult(existingPayment, request, amount);
         }
 
         var payment = new PaymentEntity(
             request.OrderId,
-            new Money(request.Amount, request.Currency),
+            amount,
             request.Provider,
             request.Method,
-            request.IdempotencyKey);
+            idempotencyKey);
 
-        payment.StartAuthorization(request.IdempotencyKey);
+        payment.StartAuthorization(idempotencyKey);
         var action = await paymentProvider.StartAuthorizationAsync(payment, cancellationToken);
         payment.RequireAction(providerActionReference: action.RedirectUrl);
 
@@ -46,10 +48,49 @@ public class CreatePaymentHandler(
         }
         catch (DbUpdateException exception)
         {
+            var concurrentPayment = await context.Payments
+                .AsNoTracking()
+                .Include(x => x.Attempts)
+                .FirstOrDefaultAsync(x => x.IdempotencyKey == idempotencyKey, cancellationToken);
+
+            if (concurrentPayment is not null)
+            {
+                return ResolveIdempotentResult(concurrentPayment, request, amount);
+            }
+
             throw new ConflictException($"Payment could not be created. {exception.Message}");
         }
 
         return new CreatePaymentResultDto(payment.ToDto(), action);
+    }
+
+    private static string NormalizeIdempotencyKey(string idempotencyKey)
+    {
+        return idempotencyKey.Trim();
+    }
+
+    private static CreatePaymentResultDto ResolveIdempotentResult(
+        PaymentEntity payment,
+        CreatePaymentCommand request,
+        Money amount)
+    {
+        EnsureSameCreateRequest(payment, request, amount);
+
+        var existingAction = ResolveExistingAction(payment);
+        return new CreatePaymentResultDto(payment.ToDto(), existingAction);
+    }
+
+    private static void EnsureSameCreateRequest(PaymentEntity payment, CreatePaymentCommand request, Money amount)
+    {
+        if (payment.OrderId != request.OrderId ||
+            payment.Amount.Amount != amount.Amount ||
+            payment.Amount.Currency != amount.Currency ||
+            payment.Provider != request.Provider ||
+            payment.Method != request.Method)
+        {
+            throw new ConflictException(
+                "Idempotency key is already associated with a different payment create request.");
+        }
     }
 
     private static PaymentActionDto ResolveExistingAction(PaymentEntity payment)
