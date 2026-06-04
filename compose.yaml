@@ -173,6 +173,8 @@ services:
         condition: service_healthy
       order-api:
         condition: service_healthy
+      api-gateway:
+        condition: service_healthy
       otel-collector:
         condition: service_healthy
     ports:

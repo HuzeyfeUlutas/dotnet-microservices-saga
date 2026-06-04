@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.HttpOverrides;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
 using System.Threading.RateLimiting;
 
 const string GatewayCorsPolicyName = "GatewayCors";
@@ -58,6 +60,16 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService(
+        serviceName: "Marketplace.ApiGateway",
+        serviceVersion: "1.0.0",
+        serviceInstanceId: Environment.MachineName))
+    .WithMetrics(metrics => metrics
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddPrometheusExporter());
+
 builder.Services
     .AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
@@ -65,6 +77,8 @@ builder.Services
 builder.Services.AddHealthChecks();
 
 var app = builder.Build();
+
+app.MapPrometheusScrapingEndpoint();
 
 app.UseForwardedHeaders();
 app.UseGatewaySecurityHeaders();
