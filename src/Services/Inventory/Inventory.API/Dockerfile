@@ -13,6 +13,9 @@ RUN dotnet publish "src/Services/Inventory/Inventory.API/Inventory.API.csproj" -
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/publish .
 
 ENV ASPNETCORE_URLS=http://+:8080
