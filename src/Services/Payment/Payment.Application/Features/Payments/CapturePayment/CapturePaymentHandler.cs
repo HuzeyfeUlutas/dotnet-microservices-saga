@@ -31,7 +31,7 @@ public class CapturePaymentHandler(
             return payment.ToDto();
         }
 
-        var attempt = payment.StartCapture();
+        var attempt = payment.StartCapture(request.IdempotencyKey);
         context.PaymentAttempts.Add(attempt);
         var providerResult = await paymentProvider.CaptureAsync(payment, cancellationToken);
 

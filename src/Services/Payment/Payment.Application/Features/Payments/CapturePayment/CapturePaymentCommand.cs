@@ -3,4 +3,4 @@ using Payment.Application.DTOs;
 
 namespace Payment.Application.Features.Payments.CapturePayment;
 
-public sealed record CapturePaymentCommand(Guid PaymentId) : IRequest<PaymentDto>;
+public sealed record CapturePaymentCommand(Guid PaymentId, string IdempotencyKey) : IRequest<PaymentDto>;

@@ -29,6 +29,7 @@ public class PaymentCompensationRequestedConsumerTests
             Guid.NewGuid(),
             Guid.NewGuid(),
             Guid.NewGuid(),
+            "void-request",
             "capture failed",
             DateTime.UtcNow);
         var context = Substitute.For<ConsumeContext<VoidPaymentAuthorizationRequested>>();
@@ -42,7 +43,8 @@ public class PaymentCompensationRequestedConsumerTests
         await sender.Received(1).Send(
             Arg.Is<VoidPaymentAuthorizationCommand>(command =>
                 command.RequestEventId == message.EventId &&
-                command.PaymentId == message.PaymentId),
+                command.PaymentId == message.PaymentId &&
+                command.IdempotencyKey == message.IdempotencyKey),
             CancellationToken.None);
         await publisher.Received(1).PublishAsync(
             Arg.Is<PaymentAuthorizationVoided>(result =>
@@ -67,6 +69,7 @@ public class PaymentCompensationRequestedConsumerTests
             Guid.NewGuid(),
             Guid.NewGuid(),
             Guid.NewGuid(),
+            "void-failure-request",
             "capture failed",
             DateTime.UtcNow);
         var context = Substitute.For<ConsumeContext<VoidPaymentAuthorizationRequested>>();
@@ -97,6 +100,7 @@ public class PaymentCompensationRequestedConsumerTests
             Guid.NewGuid(),
             Guid.NewGuid(),
             Guid.NewGuid(),
+            "cancel-request",
             "Payment timeout expired.",
             DateTime.UtcNow);
         var context = Substitute.For<ConsumeContext<CancelPendingPaymentRequested>>();
@@ -111,6 +115,7 @@ public class PaymentCompensationRequestedConsumerTests
             Arg.Is<CancelPendingPaymentCommand>(command =>
                 command.RequestEventId == message.EventId &&
                 command.PaymentId == message.PaymentId &&
+                command.IdempotencyKey == message.IdempotencyKey &&
                 command.Reason == message.Reason),
             CancellationToken.None);
         await publisher.Received(1).PublishAsync(
@@ -136,6 +141,7 @@ public class PaymentCompensationRequestedConsumerTests
             Guid.NewGuid(),
             Guid.NewGuid(),
             Guid.NewGuid(),
+            "cancel-failure-request",
             "Payment timeout expired.",
             DateTime.UtcNow);
         var context = Substitute.For<ConsumeContext<CancelPendingPaymentRequested>>();

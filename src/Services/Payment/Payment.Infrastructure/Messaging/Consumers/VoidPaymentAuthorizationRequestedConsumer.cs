@@ -29,7 +29,7 @@ public sealed class VoidPaymentAuthorizationRequestedConsumer(
         try
         {
             var payment = await sender.Send(
-                new VoidPaymentAuthorizationCommand(message.EventId, message.PaymentId),
+                new VoidPaymentAuthorizationCommand(message.EventId, message.PaymentId, message.IdempotencyKey),
                 context.CancellationToken);
 
             if (payment.Status == PaymentStatus.AuthorizationVoided)

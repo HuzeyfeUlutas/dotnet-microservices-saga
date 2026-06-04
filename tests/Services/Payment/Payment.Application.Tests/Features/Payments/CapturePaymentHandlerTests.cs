@@ -29,7 +29,7 @@ public class CapturePaymentHandlerTests
         var handler = new CapturePaymentHandler(context, provider, NullLogger<CapturePaymentHandler>.Instance);
 
         var action = async () => await handler.Handle(
-            new CapturePaymentCommand(payment.Id),
+            new CapturePaymentCommand(payment.Id, "capture-conflict-request"),
             CancellationToken.None);
 
         await action.Should().ThrowAsync<ConflictException>();
@@ -57,7 +57,7 @@ public class CapturePaymentHandlerTests
 
         var handler = new CapturePaymentHandler(context, provider, NullLogger<CapturePaymentHandler>.Instance);
 
-        var result = await handler.Handle(new CapturePaymentCommand(payment.Id), CancellationToken.None);
+        var result = await handler.Handle(new CapturePaymentCommand(payment.Id, "capture-retry-request"), CancellationToken.None);
 
         result.Status.Should().Be(PaymentStatus.Captured);
         await provider.DidNotReceiveWithAnyArgs().CaptureAsync(default!, default);
@@ -76,10 +76,14 @@ public class CapturePaymentHandlerTests
             .Returns(new ProviderPaymentResultDto(true, "provider-pay-1", "provider-capture-1"));
         var handler = new CapturePaymentHandler(context, provider, NullLogger<CapturePaymentHandler>.Instance);
 
-        var result = await handler.Handle(new CapturePaymentCommand(payment.Id), CancellationToken.None);
+        const string idempotencyKey = "capture-success-request";
+
+        var result = await handler.Handle(new CapturePaymentCommand(payment.Id, idempotencyKey), CancellationToken.None);
 
         result.Status.Should().Be(PaymentStatus.Captured);
         (await context.PaymentAttempts.CountAsync()).Should().Be(2);
+        payment.Attempts.Single(x => x.Type == PaymentAttemptType.Capture)
+            .IdempotencyKey.Should().Be(idempotencyKey);
     }
 
     private static ConcurrencyFailingPaymentDbContext CreateConcurrencyFailingContext()

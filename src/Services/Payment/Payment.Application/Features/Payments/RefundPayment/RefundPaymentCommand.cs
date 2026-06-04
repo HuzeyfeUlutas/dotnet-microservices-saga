@@ -3,4 +3,4 @@ using Payment.Application.DTOs;
 
 namespace Payment.Application.Features.Payments.RefundPayment;
 
-public sealed record RefundPaymentCommand(Guid PaymentId) : IRequest<PaymentDto>;
+public sealed record RefundPaymentCommand(Guid PaymentId, string IdempotencyKey) : IRequest<PaymentDto>;

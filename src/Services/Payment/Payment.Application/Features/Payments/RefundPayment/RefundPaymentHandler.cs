@@ -29,7 +29,7 @@ public class RefundPaymentHandler(
             return payment.ToDto();
         }
 
-        var attempt = payment.StartRefund();
+        var attempt = payment.StartRefund(request.IdempotencyKey);
         context.PaymentAttempts.Add(attempt);
         var providerResult = await paymentProvider.RefundAsync(payment, cancellationToken);
 

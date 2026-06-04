@@ -131,6 +131,7 @@ public class CheckoutFailureActivityTests
             Arg.Is<VoidPaymentAuthorizationRequested>(request =>
                 request.OrderId == sagaState.OrderId &&
                 request.PaymentId == sagaState.PaymentId &&
+                request.IdempotencyKey == $"payment-auth-void:{message.EventId:N}" &&
                 request.Reason == "commit failed"),
             CancellationToken.None);
         sagaState.LastProcessedEventId.Should().Be(message.EventId);

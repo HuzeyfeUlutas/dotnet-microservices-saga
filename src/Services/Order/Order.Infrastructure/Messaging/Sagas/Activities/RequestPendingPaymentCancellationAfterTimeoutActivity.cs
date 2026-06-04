@@ -19,6 +19,7 @@ public sealed class RequestPendingPaymentCancellationAfterTimeoutActivity(
                 Guid.NewGuid(),
                 behaviorContext.Saga.PaymentId,
                 message.OrderId,
+                CreateIdempotencyKey("payment-cancel-pending", message.EventId),
                 failureReason,
                 DateTime.UtcNow),
             behaviorContext.CancellationToken);
@@ -46,5 +47,10 @@ public sealed class RequestPendingPaymentCancellationAfterTimeoutActivity(
     public void Accept(StateMachineVisitor visitor)
     {
         visitor.Visit(this);
+    }
+
+    private static string CreateIdempotencyKey(string operation, Guid eventId)
+    {
+        return $"{operation}:{eventId:N}";
     }
 }

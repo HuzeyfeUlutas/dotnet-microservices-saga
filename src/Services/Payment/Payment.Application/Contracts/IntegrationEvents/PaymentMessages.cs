@@ -4,12 +4,14 @@ public sealed record CapturePaymentRequested(
     Guid EventId,
     Guid PaymentId,
     Guid OrderId,
+    string IdempotencyKey,
     DateTime OccurredAtUtc);
 
 public sealed record RefundPaymentRequested(
     Guid EventId,
     Guid PaymentId,
     Guid OrderId,
+    string IdempotencyKey,
     string? Reason,
     DateTime OccurredAtUtc);
 
@@ -17,6 +19,7 @@ public sealed record VoidPaymentAuthorizationRequested(
     Guid EventId,
     Guid PaymentId,
     Guid OrderId,
+    string IdempotencyKey,
     string? Reason,
     DateTime OccurredAtUtc);
 
@@ -24,6 +27,7 @@ public sealed record CancelPendingPaymentRequested(
     Guid EventId,
     Guid PaymentId,
     Guid OrderId,
+    string IdempotencyKey,
     string Reason,
     DateTime OccurredAtUtc);
 

@@ -11,5 +11,9 @@ public sealed class VoidPaymentAuthorizationValidator : AbstractValidator<VoidPa
 
         RuleFor(x => x.PaymentId)
             .NotEmpty();
+
+        RuleFor(x => x.IdempotencyKey)
+            .NotEmpty()
+            .MaximumLength(150);
     }
 }

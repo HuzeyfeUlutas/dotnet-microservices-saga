@@ -28,6 +28,7 @@ public class PaymentResultRequestedConsumerTests
             Guid.NewGuid(),
             Guid.NewGuid(),
             Guid.NewGuid(),
+            "capture-request",
             DateTime.UtcNow);
         var context = CreateContext(message);
         sender.Send(Arg.Any<CapturePaymentCommand>(), Arg.Any<CancellationToken>())
@@ -35,6 +36,11 @@ public class PaymentResultRequestedConsumerTests
 
         await consumer.Consume(context);
 
+        await sender.Received(1).Send(
+            Arg.Is<CapturePaymentCommand>(command =>
+                command.PaymentId == message.PaymentId &&
+                command.IdempotencyKey == message.IdempotencyKey),
+            CancellationToken.None);
         await publisher.Received(1).PublishAsync(
             Arg.Is<PaymentCaptured>(result =>
                 result.PaymentId == message.PaymentId &&
@@ -55,6 +61,7 @@ public class PaymentResultRequestedConsumerTests
             Guid.NewGuid(),
             Guid.NewGuid(),
             Guid.NewGuid(),
+            "capture-failure-request",
             DateTime.UtcNow);
         var context = CreateContext(message);
         sender.Send(Arg.Any<CapturePaymentCommand>(), Arg.Any<CancellationToken>())
@@ -83,6 +90,7 @@ public class PaymentResultRequestedConsumerTests
             Guid.NewGuid(),
             Guid.NewGuid(),
             Guid.NewGuid(),
+            "refund-request",
             "checkout compensation",
             DateTime.UtcNow);
         var context = CreateContext(message);
@@ -91,6 +99,11 @@ public class PaymentResultRequestedConsumerTests
 
         await consumer.Consume(context);
 
+        await sender.Received(1).Send(
+            Arg.Is<RefundPaymentCommand>(command =>
+                command.PaymentId == message.PaymentId &&
+                command.IdempotencyKey == message.IdempotencyKey),
+            CancellationToken.None);
         await publisher.Received(1).PublishAsync(
             Arg.Is<PaymentRefunded>(result =>
                 result.PaymentId == message.PaymentId &&
@@ -111,6 +124,7 @@ public class PaymentResultRequestedConsumerTests
             Guid.NewGuid(),
             Guid.NewGuid(),
             Guid.NewGuid(),
+            "refund-failure-request",
             "checkout compensation",
             DateTime.UtcNow);
         var context = CreateContext(message);

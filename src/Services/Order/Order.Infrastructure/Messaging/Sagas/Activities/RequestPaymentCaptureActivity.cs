@@ -19,6 +19,7 @@ public sealed class RequestPaymentCaptureActivity(
                 Guid.NewGuid(),
                 behaviorContext.Saga.PaymentId,
                 message.OrderId,
+                CreateIdempotencyKey("payment-capture", message.EventId),
                 DateTime.UtcNow),
             behaviorContext.CancellationToken);
 
@@ -45,5 +46,10 @@ public sealed class RequestPaymentCaptureActivity(
     public void Accept(StateMachineVisitor visitor)
     {
         visitor.Visit(this);
+    }
+
+    private static string CreateIdempotencyKey(string operation, Guid eventId)
+    {
+        return $"{operation}:{eventId:N}";
     }
 }

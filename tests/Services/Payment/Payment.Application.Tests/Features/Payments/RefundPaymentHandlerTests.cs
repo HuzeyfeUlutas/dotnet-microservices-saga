@@ -28,7 +28,7 @@ public class RefundPaymentHandlerTests
         var handler = new RefundPaymentHandler(context, provider);
 
         var action = async () => await handler.Handle(
-            new RefundPaymentCommand(payment.Id),
+            new RefundPaymentCommand(payment.Id, "refund-conflict-request"),
             CancellationToken.None);
 
         await action.Should().ThrowAsync<ConflictException>();
@@ -47,10 +47,14 @@ public class RefundPaymentHandlerTests
             .Returns(new ProviderPaymentResultDto(true, "provider-pay-1", "provider-refund-1"));
         var handler = new RefundPaymentHandler(context, provider);
 
-        var result = await handler.Handle(new RefundPaymentCommand(payment.Id), CancellationToken.None);
+        const string idempotencyKey = "refund-success-request";
+
+        var result = await handler.Handle(new RefundPaymentCommand(payment.Id, idempotencyKey), CancellationToken.None);
 
         result.Status.Should().Be(PaymentStatus.Refunded);
         (await context.PaymentAttempts.CountAsync()).Should().Be(3);
+        payment.Attempts.Single(x => x.Type == PaymentAttemptType.Refund)
+            .IdempotencyKey.Should().Be(idempotencyKey);
     }
 
     private static ConcurrencyFailingPaymentDbContext CreateConcurrencyFailingContext()

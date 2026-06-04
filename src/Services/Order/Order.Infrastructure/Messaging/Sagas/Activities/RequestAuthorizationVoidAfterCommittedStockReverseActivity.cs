@@ -19,6 +19,7 @@ public sealed class RequestAuthorizationVoidAfterCommittedStockReverseActivity(
                 Guid.NewGuid(),
                 behaviorContext.Saga.PaymentId,
                 message.OrderId,
+                CreateIdempotencyKey("payment-auth-void", message.EventId),
                 behaviorContext.Saga.FailureReason,
                 DateTime.UtcNow),
             behaviorContext.CancellationToken);
@@ -45,5 +46,10 @@ public sealed class RequestAuthorizationVoidAfterCommittedStockReverseActivity(
     public void Accept(StateMachineVisitor visitor)
     {
         visitor.Visit(this);
+    }
+
+    private static string CreateIdempotencyKey(string operation, Guid eventId)
+    {
+        return $"{operation}:{eventId:N}";
     }
 }

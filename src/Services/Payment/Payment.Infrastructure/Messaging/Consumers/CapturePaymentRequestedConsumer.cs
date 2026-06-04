@@ -24,7 +24,7 @@ public sealed class CapturePaymentRequestedConsumer(
             message.OrderId);
 
         var payment = await sender.Send(
-            new CapturePaymentCommand(message.PaymentId),
+            new CapturePaymentCommand(message.PaymentId, message.IdempotencyKey),
             context.CancellationToken);
 
         if (payment.Status == PaymentStatus.Captured)

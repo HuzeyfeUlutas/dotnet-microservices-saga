@@ -72,6 +72,7 @@ public class CheckoutCaptureFailureActivityTests
             Arg.Is<VoidPaymentAuthorizationRequested>(request =>
                 request.OrderId == sagaState.OrderId &&
                 request.PaymentId == sagaState.PaymentId &&
+                request.IdempotencyKey == $"payment-auth-void:{message.EventId:N}" &&
                 request.Reason == "capture failed"),
             CancellationToken.None);
         sagaState.LastProcessedEventId.Should().Be(message.EventId);

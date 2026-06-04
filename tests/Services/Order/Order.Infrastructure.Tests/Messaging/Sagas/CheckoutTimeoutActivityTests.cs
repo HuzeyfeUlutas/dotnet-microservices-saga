@@ -33,6 +33,7 @@ public class CheckoutTimeoutActivityTests
             Arg.Is<CancelPendingPaymentRequested>(request =>
                 request.OrderId == sagaState.OrderId &&
                 request.PaymentId == sagaState.PaymentId &&
+                request.IdempotencyKey == $"payment-cancel-pending:{message.EventId:N}" &&
                 request.Reason == "Payment timeout expired."),
             CancellationToken.None);
         sagaState.FailureReason.Should().Be("Payment timeout expired.");

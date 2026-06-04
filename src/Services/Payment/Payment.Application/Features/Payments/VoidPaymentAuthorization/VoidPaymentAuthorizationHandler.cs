@@ -29,7 +29,7 @@ public sealed class VoidPaymentAuthorizationHandler(
             return payment.ToDto();
         }
 
-        var attempt = payment.StartAuthorizationVoid();
+        var attempt = payment.StartAuthorizationVoid(request.IdempotencyKey);
         context.PaymentAttempts.Add(attempt);
         var providerResult = await paymentProvider.VoidAuthorizationAsync(payment, cancellationToken);
 

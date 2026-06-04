@@ -32,7 +32,7 @@ public class PaymentCompensationHandlerTests
         var handler = new VoidPaymentAuthorizationHandler(context, provider);
 
         var action = async () => await handler.Handle(
-            new VoidPaymentAuthorizationCommand(Guid.NewGuid(), payment.Id),
+            new VoidPaymentAuthorizationCommand(Guid.NewGuid(), payment.Id, "void-conflict-request"),
             CancellationToken.None);
 
         await action.Should().ThrowAsync<ConflictException>();
@@ -51,7 +51,11 @@ public class PaymentCompensationHandlerTests
         var handler = new CancelPendingPaymentHandler(context);
 
         var action = async () => await handler.Handle(
-            new CancelPendingPaymentCommand(Guid.NewGuid(), payment.Id, "Payment timeout expired."),
+            new CancelPendingPaymentCommand(
+                Guid.NewGuid(),
+                payment.Id,
+                "cancel-conflict-request",
+                "Payment timeout expired."),
             CancellationToken.None);
 
         await action.Should().ThrowAsync<ConflictException>();
@@ -73,13 +77,16 @@ public class PaymentCompensationHandlerTests
             .Returns(new ProviderPaymentResultDto(true, "provider-pay-1", "provider-void-1"));
         var handler = new VoidPaymentAuthorizationHandler(context, provider);
         var requestEventId = Guid.NewGuid();
+        const string idempotencyKey = "void-success-request";
 
         var result = await handler.Handle(
-            new VoidPaymentAuthorizationCommand(requestEventId, payment.Id),
+            new VoidPaymentAuthorizationCommand(requestEventId, payment.Id, idempotencyKey),
             CancellationToken.None);
 
         result.Status.Should().Be(PaymentStatus.AuthorizationVoided);
         (await context.PaymentAttempts.CountAsync()).Should().Be(2);
+        payment.Attempts.Single(x => x.Type == PaymentAttemptType.AuthorizationVoid)
+            .IdempotencyKey.Should().Be(idempotencyKey);
     }
 
     [Fact]
@@ -96,7 +103,11 @@ public class PaymentCompensationHandlerTests
         var requestEventId = Guid.NewGuid();
 
         var result = await handler.Handle(
-            new CancelPendingPaymentCommand(requestEventId, payment.Id, "Payment timeout expired."),
+            new CancelPendingPaymentCommand(
+                requestEventId,
+                payment.Id,
+                "cancel-success-request",
+                "Payment timeout expired."),
             CancellationToken.None);
 
         result.Status.Should().Be(PaymentStatus.Cancelled);
@@ -121,7 +132,7 @@ public class PaymentCompensationHandlerTests
         var requestEventId = Guid.NewGuid();
 
         var result = await handler.Handle(
-            new VoidPaymentAuthorizationCommand(requestEventId, payment.Id),
+            new VoidPaymentAuthorizationCommand(requestEventId, payment.Id, "void-retry-request"),
             CancellationToken.None);
 
         result.Status.Should().Be(PaymentStatus.AuthorizationVoided);
@@ -141,7 +152,11 @@ public class PaymentCompensationHandlerTests
         var requestEventId = Guid.NewGuid();
 
         var result = await handler.Handle(
-            new CancelPendingPaymentCommand(requestEventId, payment.Id, "Payment timeout expired."),
+            new CancelPendingPaymentCommand(
+                requestEventId,
+                payment.Id,
+                "cancel-retry-request",
+                "Payment timeout expired."),
             CancellationToken.None);
 
         result.Status.Should().Be(PaymentStatus.Cancelled);

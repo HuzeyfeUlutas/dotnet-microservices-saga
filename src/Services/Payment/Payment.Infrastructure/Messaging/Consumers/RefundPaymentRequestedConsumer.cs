@@ -24,7 +24,7 @@ public sealed class RefundPaymentRequestedConsumer(
             message.OrderId);
 
         var payment = await sender.Send(
-            new RefundPaymentCommand(message.PaymentId),
+            new RefundPaymentCommand(message.PaymentId, message.IdempotencyKey),
             context.CancellationToken);
 
         if (payment.Status == PaymentStatus.Refunded)

@@ -28,7 +28,11 @@ public sealed class CancelPendingPaymentRequestedConsumer(
         try
         {
             var payment = await sender.Send(
-                new CancelPendingPaymentCommand(message.EventId, message.PaymentId, message.Reason),
+                new CancelPendingPaymentCommand(
+                    message.EventId,
+                    message.PaymentId,
+                    message.IdempotencyKey,
+                    message.Reason),
                 context.CancellationToken);
 
             await integrationEventPublisher.PublishAsync(

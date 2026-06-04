@@ -12,6 +12,10 @@ public sealed class CancelPendingPaymentValidator : AbstractValidator<CancelPend
         RuleFor(x => x.PaymentId)
             .NotEmpty();
 
+        RuleFor(x => x.IdempotencyKey)
+            .NotEmpty()
+            .MaximumLength(150);
+
         RuleFor(x => x.Reason)
             .NotEmpty();
     }

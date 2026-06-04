@@ -61,7 +61,8 @@ public class CheckoutSuccessActivityTests
             .Publish(
                 Arg.Is<CapturePaymentRequested>(request =>
                     request.OrderId == sagaState.OrderId &&
-                    request.PaymentId == sagaState.PaymentId),
+                    request.PaymentId == sagaState.PaymentId &&
+                    request.IdempotencyKey == $"payment-capture:{message.EventId:N}"),
                 CancellationToken.None);
         sagaState.LastProcessedEventId.Should().Be(message.EventId);
         await next.Received(1).Execute(behaviorContext);
