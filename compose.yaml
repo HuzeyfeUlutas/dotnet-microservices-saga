@@ -208,6 +208,33 @@ services:
       retries: 20
       start_period: 30s
 
+  api-gateway:
+    build:
+      context: .
+      dockerfile: src/ApiGateways/Marketplace.ApiGateway/Dockerfile
+    container_name: api-gateway
+    depends_on:
+      catalog-api:
+        condition: service_started
+      inventory-api:
+        condition: service_started
+      notification-api:
+        condition: service_started
+      payment-api:
+        condition: service_started
+      order-api:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ReverseProxy__Clusters__catalog__Destinations__catalog__Address: http://catalog-api:8080/
+      ReverseProxy__Clusters__inventory__Destinations__inventory__Address: http://inventory-api:8080/
+      ReverseProxy__Clusters__notification__Destinations__notification__Address: http://notification-api:8080/
+      ReverseProxy__Clusters__payment__Destinations__payment__Address: http://payment-api:8080/
+      ReverseProxy__Clusters__order__Destinations__order__Address: http://order-api:8080/
+    ports:
+      - "8085:8080"
+
   catalog-api:
     build:
       context: .
