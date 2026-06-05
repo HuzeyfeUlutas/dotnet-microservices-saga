@@ -79,6 +79,7 @@ Public local ports from `compose.yaml`:
 | Notification API | `http://localhost:8082` |
 | Payment API | `http://localhost:8083` |
 | Order API | `http://localhost:8084` |
+| Keycloak | `http://localhost:8086` |
 | RabbitMQ UI | `http://localhost:15672` |
 | Elasticsearch | `http://localhost:9200` |
 | Prometheus | `http://localhost:9090` |
@@ -94,6 +95,29 @@ Default Grafana credentials:
 
 - username: `admin`
 - password: `admin`
+
+Default Keycloak admin credentials:
+
+- username: `admin`
+- password: `admin`
+
+Keycloak demo realm:
+
+- realm: `marketplace`
+- frontend client: `marketplace-frontend`
+- API audience: `marketplace-api`
+
+Demo users use the local-only password `Password123!`:
+
+| Username | Roles |
+| --- | --- |
+| `customer1` | `customer` |
+| `admin` | `admin`, `customer`, `catalog-manager`, `inventory-manager`, `support` |
+| `catalogmanager` | `catalog-manager` |
+| `inventorymanager` | `inventory-manager` |
+| `support` | `support` |
+
+Use these accounts only for local demo work.
 
 ## Health and Metrics
 
@@ -150,6 +174,40 @@ Gateway baseline controls:
 - basic security headers
 - forwarded header support
 - Prometheus metrics endpoint
+
+## Keycloak
+
+The local Keycloak instance imports the `marketplace` realm from:
+
+```text
+docker/keycloak/realm-marketplace.json
+```
+
+Open the admin console at:
+
+```text
+http://localhost:8086/admin
+```
+
+The local issuer URL is:
+
+```text
+http://localhost:8086/realms/marketplace
+```
+
+For manual backend checks, request a demo access token with Resource Owner Password flow:
+
+```bash
+curl -fsS -X POST http://localhost:8086/realms/marketplace/protocol/openid-connect/token \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'grant_type=password' \
+  -d 'client_id=marketplace-frontend' \
+  -d 'username=customer1' \
+  -d 'password=Password123!' |
+  jq -er '.access_token'
+```
+
+The frontend demo should use Authorization Code with PKCE instead of password flow. The password flow is kept enabled only to simplify local smoke scripts and manual API checks.
 
 ## Migrations
 

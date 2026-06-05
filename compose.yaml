@@ -105,6 +105,19 @@ services:
       retries: 10
       start_period: 20s
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0.6
+    container_name: keycloak
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./docker/keycloak:/opt/keycloak/data/import:ro
+    ports:
+      - "8086:8080"
+
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.14.3
     container_name: elasticsearch

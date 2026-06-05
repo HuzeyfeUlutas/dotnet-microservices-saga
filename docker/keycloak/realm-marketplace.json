@@ -1,0 +1,178 @@
+{
+  "realm": "marketplace",
+  "enabled": true,
+  "displayName": "Marketplace Demo",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "sslRequired": "external",
+  "roles": {
+    "realm": [
+      {
+        "name": "customer",
+        "description": "Buyer role for checkout and own order/payment views"
+      },
+      {
+        "name": "admin",
+        "description": "Full demo administration role"
+      },
+      {
+        "name": "catalog-manager",
+        "description": "Catalog create, update, and delete role"
+      },
+      {
+        "name": "inventory-manager",
+        "description": "Inventory and stock management role"
+      },
+      {
+        "name": "support",
+        "description": "Notification and support operations role"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "marketplace-api",
+      "name": "Marketplace API Audience",
+      "enabled": true,
+      "bearerOnly": true,
+      "publicClient": false,
+      "protocol": "openid-connect"
+    },
+    {
+      "clientId": "marketplace-frontend",
+      "name": "Marketplace Frontend Demo",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "protocol": "openid-connect",
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://localhost:4200/*",
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "http://localhost:4200",
+        "http://localhost:5173"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "marketplace-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "marketplace-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "customer1",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "customer1@example.local",
+      "firstName": "Demo",
+      "lastName": "Customer",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "customer"
+      ]
+    },
+    {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "admin@example.local",
+      "firstName": "Demo",
+      "lastName": "Admin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "admin",
+        "customer",
+        "catalog-manager",
+        "inventory-manager",
+        "support"
+      ]
+    },
+    {
+      "username": "catalogmanager",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "catalogmanager@example.local",
+      "firstName": "Catalog",
+      "lastName": "Manager",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "catalog-manager"
+      ]
+    },
+    {
+      "username": "inventorymanager",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "inventorymanager@example.local",
+      "firstName": "Inventory",
+      "lastName": "Manager",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "inventory-manager"
+      ]
+    },
+    {
+      "username": "support",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "support@example.local",
+      "firstName": "Demo",
+      "lastName": "Support",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "support"
+      ]
+    }
+  ]
+}
