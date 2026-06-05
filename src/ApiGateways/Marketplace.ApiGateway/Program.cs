@@ -1,3 +1,8 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.HttpOverrides;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -7,6 +12,9 @@ const string GatewayCorsPolicyName = "GatewayCors";
 const string GatewayRateLimitPolicyName = "GatewayPerClientRateLimit";
 
 var builder = WebApplication.CreateBuilder(args);
+var authenticationOptions = builder.Configuration
+    .GetSection("Gateway:Authentication")
+    .Get<GatewayAuthenticationOptions>() ?? new GatewayAuthenticationOptions();
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
@@ -60,6 +68,18 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
+if (authenticationOptions.Enabled)
+{
+    builder.Services
+        .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options => GatewayAuthentication.ConfigureJwtBearer(options, authenticationOptions));
+}
+
+builder.Services.AddAuthorization(options =>
+{
+    GatewayAuthorization.ConfigurePolicies(options, authenticationOptions.Enabled);
+});
+
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService(
         serviceName: "Marketplace.ApiGateway",
@@ -84,6 +104,11 @@ app.UseForwardedHeaders();
 app.UseGatewaySecurityHeaders();
 app.UseCors(GatewayCorsPolicyName);
 app.UseRateLimiter();
+if (authenticationOptions.Enabled)
+{
+    app.UseAuthentication();
+}
+app.UseAuthorization();
 
 app.MapHealthChecks("/health/live");
 app.MapHealthChecks("/health/ready");
@@ -107,6 +132,145 @@ internal sealed class GatewayRateLimitOptions
     public int QueueLimit { get; init; }
 
     public int WindowSeconds { get; init; } = 60;
+}
+
+internal sealed class GatewayAuthenticationOptions
+{
+    public bool Enabled { get; init; } = true;
+
+    public string? Authority { get; init; }
+
+    public string Audience { get; init; } = "marketplace-api";
+
+    public string? ValidIssuer { get; init; }
+
+    public bool RequireHttpsMetadata { get; init; } = true;
+
+    public int ClockSkewMinutes { get; init; } = 2;
+}
+
+internal static class GatewayAuthorizationPolicies
+{
+    public const string Authenticated = "authenticated";
+    public const string CatalogManagement = "catalog-management";
+    public const string InventoryManagement = "inventory-management";
+    public const string Checkout = "checkout";
+    public const string CustomerOrAdmin = "customer-or-admin";
+    public const string Support = "support";
+}
+
+internal static class GatewayRoles
+{
+    public const string Customer = "customer";
+    public const string Admin = "admin";
+    public const string CatalogManager = "catalog-manager";
+    public const string InventoryManager = "inventory-manager";
+    public const string Support = "support";
+}
+
+internal static class GatewayAuthorization
+{
+    public static void ConfigurePolicies(AuthorizationOptions options, bool authenticationEnabled)
+    {
+        if (!authenticationEnabled)
+        {
+            AddDisabledPolicy(options, GatewayAuthorizationPolicies.Authenticated);
+            AddDisabledPolicy(options, GatewayAuthorizationPolicies.CatalogManagement);
+            AddDisabledPolicy(options, GatewayAuthorizationPolicies.InventoryManagement);
+            AddDisabledPolicy(options, GatewayAuthorizationPolicies.Checkout);
+            AddDisabledPolicy(options, GatewayAuthorizationPolicies.CustomerOrAdmin);
+            AddDisabledPolicy(options, GatewayAuthorizationPolicies.Support);
+            return;
+        }
+
+        options.AddPolicy(GatewayAuthorizationPolicies.Authenticated, policy =>
+            policy.RequireAuthenticatedUser());
+        options.AddPolicy(GatewayAuthorizationPolicies.CatalogManagement, policy =>
+            policy.RequireRole(GatewayRoles.Admin, GatewayRoles.CatalogManager));
+        options.AddPolicy(GatewayAuthorizationPolicies.InventoryManagement, policy =>
+            policy.RequireRole(GatewayRoles.Admin, GatewayRoles.InventoryManager));
+        options.AddPolicy(GatewayAuthorizationPolicies.Checkout, policy =>
+            policy.RequireRole(GatewayRoles.Customer, GatewayRoles.Admin));
+        options.AddPolicy(GatewayAuthorizationPolicies.CustomerOrAdmin, policy =>
+            policy.RequireRole(GatewayRoles.Customer, GatewayRoles.Admin));
+        options.AddPolicy(GatewayAuthorizationPolicies.Support, policy =>
+            policy.RequireRole(GatewayRoles.Admin, GatewayRoles.Support));
+    }
+
+    private static void AddDisabledPolicy(AuthorizationOptions options, string policyName)
+    {
+        options.AddPolicy(policyName, policy => policy.RequireAssertion(_ => true));
+    }
+}
+
+internal static class GatewayAuthentication
+{
+    public static void ConfigureJwtBearer(JwtBearerOptions options, GatewayAuthenticationOptions authenticationOptions)
+    {
+        if (authenticationOptions.Enabled && string.IsNullOrWhiteSpace(authenticationOptions.Authority))
+        {
+            throw new InvalidOperationException(
+                "Gateway authentication is enabled, but Gateway:Authentication:Authority is not configured.");
+        }
+
+        options.RequireHttpsMetadata = authenticationOptions.RequireHttpsMetadata;
+        options.Authority = NullIfWhiteSpace(authenticationOptions.Authority);
+        options.Audience = authenticationOptions.Audience;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = !string.IsNullOrWhiteSpace(authenticationOptions.ValidIssuer),
+            ValidIssuer = NullIfWhiteSpace(authenticationOptions.ValidIssuer),
+            ValidateAudience = true,
+            ValidAudience = authenticationOptions.Audience,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(authenticationOptions.ClockSkewMinutes),
+            RoleClaimType = ClaimTypes.Role
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = context =>
+            {
+                AddKeycloakRealmRoles(context.Principal);
+                return Task.CompletedTask;
+            }
+        };
+    }
+
+    private static void AddKeycloakRealmRoles(ClaimsPrincipal? principal)
+    {
+        if (principal?.Identity is not ClaimsIdentity identity)
+        {
+            return;
+        }
+
+        var realmAccess = principal.FindFirst("realm_access")?.Value;
+        if (string.IsNullOrWhiteSpace(realmAccess))
+        {
+            return;
+        }
+
+        using var document = JsonDocument.Parse(realmAccess);
+        if (!document.RootElement.TryGetProperty("roles", out var rolesElement) ||
+            rolesElement.ValueKind != JsonValueKind.Array)
+        {
+            return;
+        }
+
+        foreach (var roleElement in rolesElement.EnumerateArray())
+        {
+            var role = roleElement.GetString();
+            if (!string.IsNullOrWhiteSpace(role) &&
+                !principal.HasClaim(ClaimTypes.Role, role))
+            {
+                identity.AddClaim(new Claim(ClaimTypes.Role, role));
+            }
+        }
+    }
+
+    private static string? NullIfWhiteSpace(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
 }
 
 internal static class SecurityHeadersApplicationBuilderExtensions
