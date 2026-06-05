@@ -222,9 +222,9 @@ Target behavior:
 buyer id = authenticated user id from Gateway identity context
 ```
 
-The checkout request should eventually omit `buyerId`.
+The checkout request should omit `buyerId`.
 
-Temporary compatibility is acceptable during migration, but Order must reject or ignore mismatched body `buyerId` once authenticated identity is available.
+Temporary body compatibility is acceptable during migration, but Order must resolve the effective buyer id from `X-User-Id`. If a body `buyerId` is still sent and does not match the Gateway identity context, Order must reject the request.
 
 ## Frontend Agent Assumptions
 
