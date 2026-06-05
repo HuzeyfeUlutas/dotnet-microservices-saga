@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using System.Threading.RateLimiting;
+using Yarp.ReverseProxy.Transforms;
 
 const string GatewayCorsPolicyName = "GatewayCors";
 const string GatewayRateLimitPolicyName = "GatewayPerClientRateLimit";
@@ -92,7 +93,15 @@ builder.Services.AddOpenTelemetry()
 
 builder.Services
     .AddReverseProxy()
-    .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
+    .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
+    .AddTransforms(transformBuilderContext =>
+    {
+        transformBuilderContext.AddRequestTransform(transformContext =>
+        {
+            GatewayIdentityHeaders.Apply(transformContext.ProxyRequest, transformContext.HttpContext.User);
+            return ValueTask.CompletedTask;
+        });
+    });
 
 builder.Services.AddHealthChecks();
 
@@ -270,6 +279,68 @@ internal static class GatewayAuthentication
     private static string? NullIfWhiteSpace(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+}
+
+internal static class GatewayIdentityHeaders
+{
+    public const string UserId = "X-User-Id";
+    public const string UserEmail = "X-User-Email";
+    public const string UserRoles = "X-User-Roles";
+
+    private static readonly string[] HeaderNames = [UserId, UserEmail, UserRoles];
+
+    public static void Apply(HttpRequestMessage proxyRequest, ClaimsPrincipal user)
+    {
+        RemoveClientSuppliedIdentityHeaders(proxyRequest);
+
+        if (user.Identity?.IsAuthenticated != true)
+        {
+            return;
+        }
+
+        AddHeaderIfPresent(proxyRequest, UserId, ResolveUserId(user));
+        AddHeaderIfPresent(proxyRequest, UserEmail, ResolveUserEmail(user));
+
+        var roles = user.FindAll(ClaimTypes.Role)
+            .Select(claim => claim.Value)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (roles.Length > 0)
+        {
+            proxyRequest.Headers.TryAddWithoutValidation(UserRoles, string.Join(',', roles));
+        }
+    }
+
+    private static void RemoveClientSuppliedIdentityHeaders(HttpRequestMessage proxyRequest)
+    {
+        foreach (var headerName in HeaderNames)
+        {
+            proxyRequest.Headers.Remove(headerName);
+        }
+    }
+
+    private static string? ResolveUserId(ClaimsPrincipal user)
+    {
+        return user.FindFirstValue(ClaimTypes.NameIdentifier)
+               ?? user.FindFirstValue("sub");
+    }
+
+    private static string? ResolveUserEmail(ClaimsPrincipal user)
+    {
+        return user.FindFirstValue(ClaimTypes.Email)
+               ?? user.FindFirstValue("email")
+               ?? user.FindFirstValue("preferred_username");
+    }
+
+    private static void AddHeaderIfPresent(HttpRequestMessage proxyRequest, string headerName, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            proxyRequest.Headers.TryAddWithoutValidation(headerName, value);
+        }
     }
 }
 
