@@ -283,22 +283,25 @@ After the stack is running and migrations have been applied, run the checkout sm
 
 The smoke script creates catalog data, inventory stock, checkout/order/payment records, completes fake 3DS, and waits for the order to become confirmed.
 
-Current script default service URLs point directly to service ports:
+Current script defaults use the API Gateway as the external HTTP entry point:
 
-- Catalog: `http://localhost:8080`
-- Inventory: `http://localhost:8081`
-- Payment: `http://localhost:8083`
-- Order: `http://localhost:8084`
+- Gateway: `http://localhost:8085`
+- Keycloak: `http://localhost:8086`
 
 Override them if needed:
 
 ```bash
-CATALOG_URL=http://localhost:8085 \
-INVENTORY_URL=http://localhost:8085 \
-PAYMENT_URL=http://localhost:8085 \
-ORDER_URL=http://localhost:8085 \
+GATEWAY_URL=http://localhost:8085 \
+KEYCLOAK_URL=http://localhost:8086 \
 ./scripts/smoke-checkout.sh
 ```
+
+The script requests local demo tokens from Keycloak:
+
+- `admin` is used for catalog and inventory setup mutations.
+- `customer1` is used for checkout and order polling.
+
+The checkout request does not send `buyerId`; Order resolves buyer identity from the Gateway-propagated `X-User-Id` header.
 
 ## Recommended Local Workflow
 
