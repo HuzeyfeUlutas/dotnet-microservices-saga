@@ -303,14 +303,31 @@ The script requests local demo tokens from Keycloak:
 
 The checkout request does not send `buyerId`; Order resolves buyer identity from the Gateway-propagated `X-User-Id` header.
 
+## Gateway Auth Smoke
+
+Run the Gateway authorization smoke checks after the stack is running:
+
+```bash
+./scripts/smoke-gateway-auth.sh
+```
+
+The script verifies:
+
+- public catalog browsing works without a token
+- protected routes return `401` without a token
+- protected routes return `403` for the wrong role
+- catalog and inventory manager roles can pass their route policies
+- checkout with a customer token reaches Order validation instead of failing at the Gateway
+
 ## Recommended Local Workflow
 
 1. Run `./scripts/check-local.sh`.
 2. Start infrastructure and services with `docker compose up --build -d`.
 3. Apply migrations with `./scripts/apply-migrations.sh`.
 4. Check readiness with `curl -fsS http://localhost:8085/health/ready`.
-5. Run `./scripts/smoke-checkout.sh`.
-6. Inspect Prometheus at `http://localhost:9090` and Grafana at `http://localhost:3000`.
+5. Run `./scripts/smoke-gateway-auth.sh`.
+6. Run `./scripts/smoke-checkout.sh`.
+7. Inspect Prometheus at `http://localhost:9090` and Grafana at `http://localhost:3000`.
 
 ## Troubleshooting
 
