@@ -1,0 +1,47 @@
+# Deployment = "şu imajdan şu kadar replika çalışsın" arzusunu yönetir.
+# Çöken pod'u yeniden yaratır, yeni sürümü rolling (kesintisiz) günceller.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-api
+  labels:
+    app: catalog-api
+spec:
+  replicas: 1                      # ölçeklemek istersen: kubectl scale deploy/catalog-api --replicas=3
+  selector:
+    matchLabels:
+      app: catalog-api             # bu Deployment hangi pod'ları yönetiyor
+  template:                        # ───── pod şablonu ─────
+    metadata:
+      labels:
+        app: catalog-api           # Service ve selector bu etikete bağlanır
+    spec:
+      containers:
+        - name: catalog-api
+          # CI/CD (Modül 11) bu imajı GHCR'a build+push edecek; şimdilik placeholder.
+          image: ghcr.io/marketplace/catalog-api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: http, containerPort: 8080 }
+            - { name: grpc, containerPort: 8081 }
+          # ConfigMap + Secret'ı topluca ortam değişkeni olarak enjekte et
+          envFrom:
+            - configMapRef: { name: catalog-config }
+            - secretRef: { name: catalog-secrets }
+          # Kaynak talebi (scheduler yer ayırır) + limiti (üst sınır)
+          resources:
+            requests: { cpu: "100m", memory: "192Mi" }
+            limits:   { cpu: "500m", memory: "512Mi" }
+          # startupProbe: yavaş açılışta liveness'ı erken tetiklenmekten korur
+          startupProbe:
+            httpGet: { path: /health/ready, port: 8080 }
+            failureThreshold: 30
+            periodSeconds: 5        # 30*5 = 150sn açılış toleransı
+          # livenessProbe: başarısız olursa k8s pod'u RESTART eder
+          livenessProbe:
+            httpGet: { path: /health/live, port: 8080 }
+            periodSeconds: 15
+          # readinessProbe: başarısız olursa Service trafik GÖNDERMEZ (ama restart etmez)
+          readinessProbe:
+            httpGet: { path: /health/ready, port: 8080 }
+            periodSeconds: 10

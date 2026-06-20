@@ -1,0 +1,21 @@
+# ConfigMap = gizli OLMAYAN konfigürasyon (compose'daki environment'ın
+# parola içermeyen kısmı). Pod'a ortam değişkeni olarak enjekte edilir.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: catalog-config
+data:
+  ASPNETCORE_ENVIRONMENT: "Development"
+  # İki Kestrel ucu: HTTP (REST) ve HTTP/2 (gRPC)
+  Kestrel__Endpoints__Http__Url: "http://+:8080"
+  Kestrel__Endpoints__Http__Protocols: "Http1"
+  Kestrel__Endpoints__Grpc__Url: "http://+:8081"
+  Kestrel__Endpoints__Grpc__Protocols: "Http2"
+  # Bağımlılıklara, aynı namespace'teki Service ADLARIYLA erişiyoruz
+  # (compose'da olduğu gibi: catalog-db, rabbitmq, elasticsearch...)
+  RabbitMq__Host: "rabbitmq"
+  RabbitMq__Port: "5672"
+  RabbitMq__VirtualHost: "/"
+  RabbitMq__Username: "guest"
+  ElasticSearch__Uri: "http://elasticsearch:9200"
+  OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"

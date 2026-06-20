@@ -1,0 +1,74 @@
+# Payment servisi — HTTP + gRPC (payment_initiation sunucusu, 8081).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: payment-config
+data:
+  ASPNETCORE_ENVIRONMENT: "Development"
+  Kestrel__Endpoints__Http__Url: "http://+:8080"
+  Kestrel__Endpoints__Http__Protocols: "Http1"
+  Kestrel__Endpoints__Grpc__Url: "http://+:8081"
+  Kestrel__Endpoints__Grpc__Protocols: "Http2"
+  RabbitMq__Host: "rabbitmq"
+  RabbitMq__Port: "5672"
+  RabbitMq__VirtualHost: "/"
+  RabbitMq__Username: "guest"
+  ElasticSearch__Uri: "http://elasticsearch:9200"
+  OpenTelemetry__OtlpEndpoint: "http://otel-collector:4317"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: payment-secrets
+type: Opaque
+stringData:
+  ConnectionStrings__PaymentDatabase: "Host=payment-db;Port=5432;Database=paymentdb;Username=postgres;Password=postgres"
+  RabbitMq__Password: "guest"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-api
+  labels: { app: payment-api }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: payment-api }
+  template:
+    metadata:
+      labels: { app: payment-api }
+    spec:
+      containers:
+        - name: payment-api
+          image: ghcr.io/marketplace/payment-api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: http, containerPort: 8080 }
+            - { name: grpc, containerPort: 8081 }
+          envFrom:
+            - configMapRef: { name: payment-config }
+            - secretRef: { name: payment-secrets }
+          resources:
+            requests: { cpu: "100m", memory: "192Mi" }
+            limits:   { cpu: "500m", memory: "512Mi" }
+          startupProbe:
+            httpGet: { path: /health/ready, port: 8080 }
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health/live, port: 8080 }
+            periodSeconds: 15
+          readinessProbe:
+            httpGet: { path: /health/ready, port: 8080 }
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-api
+spec:
+  type: ClusterIP
+  selector: { app: payment-api }
+  ports:
+    - { name: http, port: 8080, targetPort: 8080 }
+    - { name: grpc, port: 8081, targetPort: 8081 }

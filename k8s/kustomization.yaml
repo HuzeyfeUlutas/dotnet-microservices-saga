@@ -1,0 +1,43 @@
+# kustomization = tüm manifest'leri tek noktadan birleştirir.
+#   render/doğrula : kubectl kustomize k8s/ --load-restrictor LoadRestrictionsNone
+#   uygula         : kubectl apply -k k8s/ --load-restrictor LoadRestrictionsNone
+# (LoadRestrictionsNone gerekiyor çünkü Keycloak realm'i k8s/ dışındaki
+#  docker/keycloak/realm-marketplace.json dosyasından üretiliyor — kopya tutmuyoruz.)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: marketplace
+
+resources:
+  # platform tabanı
+  - namespace.yaml
+  - ingress.yaml
+  # uygulama servisleri
+  - catalog/configmap.yaml
+  - catalog/secret.yaml
+  - catalog/deployment.yaml
+  - catalog/service.yaml
+  - inventory/inventory.yaml
+  - notification/notification.yaml
+  - payment/payment.yaml
+  - order/order.yaml
+  - gateway/gateway.yaml
+  # altyapı
+  - infra/databases.yaml
+  - infra/rabbitmq.yaml
+  - infra/keycloak.yaml
+
+# Keycloak realm'ini mevcut dosyadan ConfigMap olarak üret (tek kaynak)
+configMapGenerator:
+  - name: keycloak-realm
+    files:
+      - ../docker/keycloak/realm-marketplace.json
+
+generatorOptions:
+  # CM adı sabit kalsın (keycloak Deployment ona "keycloak-realm" diye referans veriyor)
+  disableNameSuffixHash: true
+
+# Tüm kaynaklara ortak etiket
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: marketplace

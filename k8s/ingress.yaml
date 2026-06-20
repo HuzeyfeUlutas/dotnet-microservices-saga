@@ -1,0 +1,35 @@
+# YENİ KAVRAM: Ingress — cluster DIŞINDAN gelen HTTP trafiğini içerideki
+# Service'lere yönlendirir (compose'daki "ports: 8085:8080" dış açımının karşılığı,
+# ama L7/host-bazlı). Çalışması için cluster'da bir Ingress Controller
+# (örn. ingress-nginx) kurulu olmalı; aksi halde sadece bir tanım olarak durur.
+#
+# Lokal kullanım: /etc/hosts'a şunu ekle →  127.0.0.1  marketplace.localhost keycloak.localhost
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: marketplace-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    # Tüm API trafiği tek kapıdan: gateway
+    - host: marketplace.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port: { number: 8080 }
+    # Keycloak login arayüzü
+    - host: keycloak.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port: { number: 8080 }

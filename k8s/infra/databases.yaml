@@ -1,0 +1,227 @@
+# ───────────────────────── VERİTABANLARI (DB-per-service) ─────────────────────────
+# YENİ KAVRAM: StatefulSet (Deployment DEĞİL).
+#  - Deployment pod'ları kullan-at + rastgele adlandırır; veriyi umursamaz.
+#  - StatefulSet pod'lara STABİL kimlik (catalog-db-0) verir ve
+#    volumeClaimTemplates ile her pod'a KENDİ kalıcı diskini (PVC) bağlar.
+#  - PVC (PersistentVolumeClaim): pod ölse/yeniden başlasa bile veri KALIR.
+#  - Headless Service (clusterIP: None): pod'a stable DNS adı verir; istemci
+#    "catalog-db" adıyla doğrudan pod'a ulaşır (compose'daki host adıyla aynı).
+# Tüm DB'ler ortak kimlik bilgisi Secret'ını paylaşır (parola = demo).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-credentials
+type: Opaque
+stringData:
+  POSTGRES_USER: "postgres"
+  POSTGRES_PASSWORD: "postgres"
+---
+# ===== catalog-db =====
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-db
+spec:
+  clusterIP: None
+  selector: { app: catalog-db }
+  ports: [{ name: postgres, port: 5432, targetPort: 5432 }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: catalog-db
+spec:
+  serviceName: catalog-db
+  replicas: 1
+  selector:
+    matchLabels: { app: catalog-db }
+  template:
+    metadata:
+      labels: { app: catalog-db }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports: [{ name: postgres, containerPort: 5432 }]
+          env:
+            - { name: POSTGRES_DB, value: catalogdb }
+          envFrom:
+            - secretRef: { name: postgres-credentials }
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "postgres", "-d", "catalogdb"] }
+            periodSeconds: 10
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources: { requests: { storage: 1Gi } }
+---
+# ===== inventory-db =====
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-db
+spec:
+  clusterIP: None
+  selector: { app: inventory-db }
+  ports: [{ name: postgres, port: 5432, targetPort: 5432 }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: inventory-db
+spec:
+  serviceName: inventory-db
+  replicas: 1
+  selector:
+    matchLabels: { app: inventory-db }
+  template:
+    metadata:
+      labels: { app: inventory-db }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports: [{ name: postgres, containerPort: 5432 }]
+          env:
+            - { name: POSTGRES_DB, value: inventorydb }
+          envFrom:
+            - secretRef: { name: postgres-credentials }
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "postgres", "-d", "inventorydb"] }
+            periodSeconds: 10
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources: { requests: { storage: 1Gi } }
+---
+# ===== notification-db =====
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-db
+spec:
+  clusterIP: None
+  selector: { app: notification-db }
+  ports: [{ name: postgres, port: 5432, targetPort: 5432 }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: notification-db
+spec:
+  serviceName: notification-db
+  replicas: 1
+  selector:
+    matchLabels: { app: notification-db }
+  template:
+    metadata:
+      labels: { app: notification-db }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports: [{ name: postgres, containerPort: 5432 }]
+          env:
+            - { name: POSTGRES_DB, value: notificationdb }
+          envFrom:
+            - secretRef: { name: postgres-credentials }
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "postgres", "-d", "notificationdb"] }
+            periodSeconds: 10
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources: { requests: { storage: 1Gi } }
+---
+# ===== payment-db =====
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-db
+spec:
+  clusterIP: None
+  selector: { app: payment-db }
+  ports: [{ name: postgres, port: 5432, targetPort: 5432 }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: payment-db
+spec:
+  serviceName: payment-db
+  replicas: 1
+  selector:
+    matchLabels: { app: payment-db }
+  template:
+    metadata:
+      labels: { app: payment-db }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports: [{ name: postgres, containerPort: 5432 }]
+          env:
+            - { name: POSTGRES_DB, value: paymentdb }
+          envFrom:
+            - secretRef: { name: postgres-credentials }
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "postgres", "-d", "paymentdb"] }
+            periodSeconds: 10
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources: { requests: { storage: 1Gi } }
+---
+# ===== order-db =====
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-db
+spec:
+  clusterIP: None
+  selector: { app: order-db }
+  ports: [{ name: postgres, port: 5432, targetPort: 5432 }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: order-db
+spec:
+  serviceName: order-db
+  replicas: 1
+  selector:
+    matchLabels: { app: order-db }
+  template:
+    metadata:
+      labels: { app: order-db }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports: [{ name: postgres, containerPort: 5432 }]
+          env:
+            - { name: POSTGRES_DB, value: orderdb }
+          envFrom:
+            - secretRef: { name: postgres-credentials }
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "postgres", "-d", "orderdb"] }
+            periodSeconds: 10
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources: { requests: { storage: 1Gi } }

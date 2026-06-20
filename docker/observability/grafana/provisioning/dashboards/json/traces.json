@@ -1,0 +1,41 @@
+{
+  "uid": "marketplace-traces",
+  "title": "Marketplace — Distributed Traces (Tempo)",
+  "tags": ["marketplace", "tracing"],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "timezone": "",
+  "refresh": "",
+  "time": { "from": "now-30m", "to": "now" },
+  "templating": { "list": [] },
+  "annotations": { "list": [] },
+  "panels": [
+    {
+      "type": "text",
+      "title": "How to explore a checkout trace",
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "Run `./scripts/smoke-checkout.sh` to generate traffic, then open the **Recent traces** table below and click a `traceId` to see the full span tree across the gateway, Order, Catalog, Inventory and Payment services (gRPC + RabbitMQ). You can also use **Explore → Tempo** with the query `{ name = \"checkout\" }` or filter by `service.name`."
+      }
+    },
+    {
+      "type": "table",
+      "title": "Recent traces",
+      "gridPos": { "h": 18, "w": 24, "x": 0, "y": 4 },
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "options": { "showHeader": true },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceql",
+          "query": "{}",
+          "limit": 20,
+          "tableType": "traces"
+        }
+      ]
+    }
+  ]
+}

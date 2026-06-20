@@ -1,0 +1,14 @@
+# Service = pod'ların önünde sabit bir iç DNS adı + yük dengeleme.
+# Pod'lar ölüp yeniden doğsa da "catalog-api" adı sabit kalır; diğer
+# servisler bu adla erişir (compose'da servis adıyla konuşman gibi).
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-api
+spec:
+  type: ClusterIP                  # sadece cluster içi erişim (dışarısı için Ingress var)
+  selector:
+    app: catalog-api               # bu etikete sahip pod'lara yönlendir
+  ports:
+    - { name: http, port: 8080, targetPort: 8080 }
+    - { name: grpc, port: 8081, targetPort: 8081 }

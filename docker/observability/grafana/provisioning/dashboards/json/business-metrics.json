@@ -1,0 +1,107 @@
+{
+  "uid": "marketplace-business",
+  "title": "Marketplace — Business & Saga Metrics",
+  "tags": ["marketplace", "business", "saga"],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "timezone": "",
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": { "list": [] },
+  "annotations": { "list": [] },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Inventory reservation lifecycle (saga)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Reservation lifecycle rate",
+      "description": "Reserve → Commit → Release → CommitReverse: the visible footprint of the checkout saga and its compensations.",
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 15, "showPoints": "auto" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["sum"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(inventory_stock_reserved_total[$__rate_interval]))", "legendFormat": "reserved" },
+        { "refId": "B", "expr": "sum(rate(inventory_reservations_committed_total[$__rate_interval]))", "legendFormat": "committed" },
+        { "refId": "C", "expr": "sum(rate(inventory_reservations_released_total[$__rate_interval]))", "legendFormat": "released (compensation)" },
+        { "refId": "D", "expr": "sum(rate(inventory_reservations_commit_reversed_total[$__rate_interval]))", "legendFormat": "commit reversed (compensation)" },
+        { "refId": "E", "expr": "sum(rate(inventory_stock_unavailable_total[$__rate_interval]))", "legendFormat": "stock unavailable" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Reservation totals",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "blue", "value": null }] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none", "textMode": "value_and_name", "orientation": "horizontal" },
+      "targets": [
+        { "refId": "A", "expr": "sum(inventory_stock_reserved_total)", "legendFormat": "reserved", "instant": true },
+        { "refId": "B", "expr": "sum(inventory_reservations_committed_total)", "legendFormat": "committed", "instant": true },
+        { "refId": "C", "expr": "sum(inventory_reservations_released_total)", "legendFormat": "released", "instant": true }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Notification delivery",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Delivery attempts rate",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 15, "showPoints": "auto" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["sum"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(notification_delivery_attempts_started_total[$__rate_interval]))", "legendFormat": "started" },
+        { "refId": "B", "expr": "sum(rate(notification_delivery_attempts_succeeded_total[$__rate_interval]))", "legendFormat": "succeeded" },
+        { "refId": "C", "expr": "sum(rate(notification_delivery_attempts_failed_total[$__rate_interval]))", "legendFormat": "failed" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Messages by outcome rate",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 15, "showPoints": "auto" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["sum"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(notification_messages_created_total[$__rate_interval]))", "legendFormat": "created" },
+        { "refId": "B", "expr": "sum(rate(notification_messages_sent_total[$__rate_interval]))", "legendFormat": "sent" },
+        { "refId": "C", "expr": "sum(rate(notification_messages_failed_total[$__rate_interval]))", "legendFormat": "failed" },
+        { "refId": "D", "expr": "sum(rate(notification_messages_skipped_total[$__rate_interval]))", "legendFormat": "skipped" }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Catalog writes",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Catalog write operations rate",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 19 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 10, "showPoints": "auto" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["sum"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(catalog_products_created_total[$__rate_interval]))", "legendFormat": "products created" },
+        { "refId": "B", "expr": "sum(rate(catalog_products_price_updated_total[$__rate_interval]))", "legendFormat": "product price updated" },
+        { "refId": "C", "expr": "sum(rate(catalog_brands_created_total[$__rate_interval]))", "legendFormat": "brands created" },
+        { "refId": "D", "expr": "sum(rate(catalog_categories_created_total[$__rate_interval]))", "legendFormat": "categories created" },
+        { "refId": "E", "expr": "sum(rate(catalog_products_unavailable_total[$__rate_interval]))", "legendFormat": "products unavailable" }
+      ]
+    }
+  ]
+}

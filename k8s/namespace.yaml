@@ -1,0 +1,9 @@
+# Namespace = mantıksal izolasyon alanı (compose'daki "proje" karşılığı).
+# Tüm marketplace kaynakları bunun içinde yaşar; aynı namespace'teki
+# Service'ler birbirine kısa adıyla erişir (örn. "catalog-db").
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: marketplace
+  labels:
+    app.kubernetes.io/part-of: marketplace

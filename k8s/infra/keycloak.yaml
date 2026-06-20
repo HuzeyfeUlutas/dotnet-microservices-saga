@@ -1,0 +1,67 @@
+# Keycloak — OpenID Connect kimlik sağlayıcı. start-dev + --import-realm ile
+# açılışta realm'i içe aktarır. Realm JSON'u bir ConfigMap'ten volume olarak
+# bağlanır (ConfigMap, kustomization'daki configMapGenerator ile üretilir).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: keycloak-secret
+type: Opaque
+stringData:
+  KEYCLOAK_ADMIN: "admin"
+  KEYCLOAK_ADMIN_PASSWORD: "admin"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  labels: { app: keycloak }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: keycloak }
+  template:
+    metadata:
+      labels: { app: keycloak }
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:25.0.6
+          args: ["start-dev", "--import-realm"]
+          env:
+            - { name: KC_HEALTH_ENABLED, value: "true" }
+          envFrom:
+            - secretRef: { name: keycloak-secret }
+          ports:
+            - { name: http, containerPort: 8080 }
+          volumeMounts:
+            - name: realm-import
+              mountPath: /opt/keycloak/data/import
+              readOnly: true
+          resources:
+            requests: { cpu: "200m", memory: "512Mi" }
+            limits:   { cpu: "1000m", memory: "1Gi" }
+          # Keycloak açılışı + realm import yavaştır → bol toleranslı startup
+          startupProbe:
+            httpGet: { path: /realms/marketplace, port: 8080 }
+            failureThreshold: 40
+            periodSeconds: 5
+          readinessProbe:
+            httpGet: { path: /realms/marketplace, port: 8080 }
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket: { port: 8080 }
+            periodSeconds: 20
+      volumes:
+        - name: realm-import
+          configMap:
+            name: keycloak-realm
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+spec:
+  type: ClusterIP
+  selector: { app: keycloak }
+  ports:
+    - { name: http, port: 8080, targetPort: 8080 }
