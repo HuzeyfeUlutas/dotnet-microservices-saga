@@ -7,7 +7,6 @@
 ![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet&logoColor=white)
 ![Tests](https://img.shields.io/badge/tests-193%20passing-success)
 ![Saga](https://img.shields.io/badge/saga-MassTransit%20state%20machine-orange)
-![Kubernetes](https://img.shields.io/badge/deploy-Kubernetes-326CE5?logo=kubernetes&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 </div>
